@@ -223,7 +223,7 @@ public class CommandRegistry {
         };
 
         OceanicModel model = OceanicPlanetFactory.createOceanicModel(config);
-        RegistryKey<World> dimensionKey = PlanetDimensionManager.createOceanicPlanet(source.getServer(), model);
+//        RegistryKey<World> dimensionKey = PlanetDimensionManager.createOceanicPlanet(source.getServer(), model);
 
         source.sendFeedback(() -> Text.literal("✅ Created oceanic planet: " + planetName), true);
         source.sendFeedback(() -> Text.literal("Ocean Coverage: " +
@@ -261,7 +261,7 @@ public class CommandRegistry {
         };
 
         RockyModel model = RockyPlanetFactory.createRockyModel(config);
-        RegistryKey<World> dimensionKey = PlanetDimensionManager.createRockyPlanet(source.getServer(), model);
+//        RegistryKey<World> dimensionKey = PlanetDimensionManager.createRockyPlanet(source.getServer(), model);
 
         source.sendFeedback(() -> Text.literal("✅ Created rocky planet: " + planetName), true);
         source.sendFeedback(() -> Text.literal("Surface Type: " + config.getDominantSurface()), false);

@@ -1,7 +1,6 @@
 package net.terradyne.planet.factory;
 
 import net.minecraft.world.biome.source.BiomeSource;
-import net.terradyne.planet.chunk.DesertChunkGenerator;
 import net.terradyne.planet.config.DesertConfig;
 import net.terradyne.planet.model.DesertModel;
 import net.terradyne.util.ModEnums;
@@ -64,7 +63,7 @@ public class DesertPlanetFactory {
         return new DesertModel(config);
     }
 
-    public static DesertChunkGenerator createDesertChunkGenerator(DesertModel model, BiomeSource biomeSource) {
-        return new DesertChunkGenerator(model, biomeSource);
-    }
+//    public static DesertChunkGenerator createDesertChunkGenerator(DesertModel model, BiomeSource biomeSource) {
+//        return new DesertChunkGenerator(model, biomeSource);
+//    }
 }

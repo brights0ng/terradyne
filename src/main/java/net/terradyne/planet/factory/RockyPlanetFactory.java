@@ -1,7 +1,6 @@
 package net.terradyne.planet.factory;
 
 import net.minecraft.world.biome.source.BiomeSource;
-import net.terradyne.planet.chunk.RockyChunkGenerator;
 import net.terradyne.planet.config.RockyConfig;
 import net.terradyne.planet.model.RockyModel;
 import net.terradyne.util.ModEnums;
@@ -87,7 +86,7 @@ public class RockyPlanetFactory {
         return new RockyModel(config);
     }
 
-    public static RockyChunkGenerator createRockyChunkGenerator(RockyModel model, BiomeSource biomeSource) {
-        return new RockyChunkGenerator(model, biomeSource);
-    }
+//    public static RockyChunkGenerator createRockyChunkGenerator(RockyModel model, BiomeSource biomeSource) {
+//        return new RockyChunkGenerator(model, biomeSource);
+//    }
 }

@@ -1,7 +1,6 @@
 package net.terradyne.planet.factory;
 
 import net.minecraft.world.biome.source.BiomeSource;
-import net.terradyne.planet.chunk.OceanicChunkGenerator;
 import net.terradyne.planet.config.OceanicConfig;
 import net.terradyne.planet.model.OceanicModel;
 import net.terradyne.util.ModEnums;
@@ -87,7 +86,7 @@ public class OceanicPlanetFactory {
         return new OceanicModel(config);
     }
 
-    public static OceanicChunkGenerator createOceanicChunkGenerator(OceanicModel model, BiomeSource biomeSource) {
-        return new OceanicChunkGenerator(model, biomeSource);
-    }
+//    public static OceanicChunkGenerator createOceanicChunkGenerator(OceanicModel model, BiomeSource biomeSource) {
+//        return new OceanicChunkGenerator(model, biomeSource);
+//    }
 }
