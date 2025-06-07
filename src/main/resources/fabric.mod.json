@@ -16,10 +16,10 @@
 	"environment": "*",
 	"entrypoints": {
 		"main": [
-			"net.terradyne.Terradyne"
+          "net.starlight.terradyne.Terradyne"
 		],
 		"fabric-datagen": [
-			"net.terradyne.TerradyneDataGenerator"
+          "net.starlight.terradyne.TerradyneDataGenerator"
 		]
 	},
 	"mixins": [
