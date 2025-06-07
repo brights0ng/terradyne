@@ -21,6 +21,7 @@ import net.minecraft.util.math.random.RandomSequencesState;
 import net.minecraft.server.WorldGenerationProgressListener;
 import net.terradyne.Terradyne;
 import net.terradyne.planet.PlanetType;
+import net.terradyne.planet.biome.DesertBiomeSource;
 import net.terradyne.planet.chunk.UniversalChunkGenerator;
 import net.terradyne.planet.model.DesertModel;
 import net.terradyne.planet.model.OceanicModel;
@@ -287,11 +288,41 @@ public class PlanetDimensionManager {
         }
     }
 
-    // BIOME SOURCE CREATION
+    // PlanetDimensionManager.java - UPDATE for new biome distribution
+
+    // PlanetDimensionManager.java - UPDATED createDesertBiomeSource method
+
     private static BiomeSource createDesertBiomeSource(MinecraftServer server, DesertModel model) {
-        Registry<Biome> biomeRegistry = server.getRegistryManager().get(RegistryKeys.BIOME);
-        RegistryEntry<Biome> desertBiome = biomeRegistry.getEntry(BiomeKeys.DESERT).orElseThrow();
-        return new FixedBiomeSource(desertBiome);
+        Terradyne.LOGGER.info("=== CREATING CUSTOM DESERT BIOME SOURCE ===");
+        Terradyne.LOGGER.info("Planet: {}", model.getConfig().getPlanetName());
+        Terradyne.LOGGER.info("Temperature: {}°C", model.getConfig().getSurfaceTemperature());
+        Terradyne.LOGGER.info("Humidity: {}", model.getConfig().getHumidity());
+        Terradyne.LOGGER.info("Rock Type: {}", model.getConfig().getDominantRock());
+
+        try {
+            // Create the custom biome-enabled DesertBiomeSource
+            DesertBiomeSource biomeSource = new DesertBiomeSource(model);
+
+            // Initialize it with the server (this will register custom biomes if needed)
+            biomeSource.init(server);
+
+            // Log success with custom biomes
+            Terradyne.LOGGER.info("✅ Custom biomes loaded: {}", biomeSource.getBiomeDistribution());
+            Terradyne.LOGGER.info("🎨 Using custom biome properties (no vanilla biome behaviors)");
+
+            return biomeSource;
+
+        } catch (Exception e) {
+            Terradyne.LOGGER.error("❌ Failed to create custom DesertBiomeSource: {}", e.getMessage());
+            Terradyne.LOGGER.error("🚨 This means custom biomes could not be registered with server!");
+            e.printStackTrace();
+
+            // FALLBACK: Create a fixed biome source with vanilla desert biome
+            Terradyne.LOGGER.warn("⚠️  Using vanilla desert biome as emergency fallback");
+            Registry<Biome> biomeRegistry = server.getRegistryManager().get(RegistryKeys.BIOME);
+            RegistryEntry<Biome> desertBiome = biomeRegistry.getEntry(BiomeKeys.DESERT).orElseThrow();
+            return new FixedBiomeSource(desertBiome);
+        }
     }
 
     private static BiomeSource createOceanicBiomeSource(MinecraftServer server, OceanicModel model) {

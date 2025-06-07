@@ -272,42 +272,75 @@ public class CommandRegistry {
         return 1;
     }
 
-    // DESERT PLANET CREATION
+    // CommandRegistry.java - UPDATE for new biome names
+
     private static int createDesertPlanetWithSubtype(ServerCommandSource source, String planetName,
                                                      PlanetType planetType, String subtype) {
-        DesertConfig config = switch (subtype.toLowerCase()) {
-            case "standard", "normal" -> {
-                source.sendFeedback(() -> Text.literal("Creating standard desert planet..."), true);
-                yield DesertPlanetFactory.createDefaultDesertConfig(planetName);
-            }
-            case "hot", "hothouse", "extreme" -> {
-                source.sendFeedback(() -> Text.literal("Creating hothouse desert planet..."), true);
-                yield DesertPlanetFactory.createHotDesertConfig(planetName);
-            }
-            case "rocky", "stone" -> {
-                source.sendFeedback(() -> Text.literal("Creating rocky desert planet..."), true);
-                yield DesertPlanetFactory.createRockyDesertConfig(planetName);
-            }
-            default -> {
-                if (planetType == PlanetType.HOTHOUSE) {
-                    source.sendFeedback(() -> Text.literal("Creating hothouse desert planet..."), true);
-                    yield DesertPlanetFactory.createHotDesertConfig(planetName);
-                } else {
-                    source.sendFeedback(() -> Text.literal("Creating standard desert planet..."), true);
-                    yield DesertPlanetFactory.createDefaultDesertConfig(planetName);
-                }
-            }
-        };
 
+        // All desert planets are the same now - ignore subtype
+        source.sendFeedback(() -> Text.literal("Creating desert planet with 4 specialized biomes..."), true);
+
+        DesertConfig config = DesertPlanetFactory.createDesertConfig(planetName);
         DesertModel model = DesertPlanetFactory.createDesertModel(config);
         RegistryKey<World> dimensionKey = PlanetDimensionManager.createDesertPlanet(source.getServer(), model);
 
+        // Show creation feedback
         source.sendFeedback(() -> Text.literal("✅ Created desert planet: " + planetName), true);
         source.sendFeedback(() -> Text.literal("Temperature: " +
                 String.format("%.1f", config.getSurfaceTemperature()) + "°C"), false);
-        source.sendFeedback(() -> Text.literal("Sand Coverage: " +
-                String.format("%.1f", config.getSandDensity() * 100) + "%"), false);
+        source.sendFeedback(() -> Text.literal("Humidity: " +
+                String.format("%.1f", config.getHumidity() * 100) + "%"), false);
+        source.sendFeedback(() -> Text.literal("Rock Type: " + config.getDominantRock()), false);
+
+        // Updated biomes message
+        source.sendFeedback(() -> Text.literal("Biomes: Dune Sea, Granite Mesas, Limestone Canyons, Salt Flats (25% each)"), false);
+
+        source.sendFeedback(() -> Text.literal(""), false);
+        source.sendFeedback(() -> Text.literal("§6Biome Features:"), false);
+        source.sendFeedback(() -> Text.literal("§e• Dune Sea: §7Rolling sand dunes with wind patterns"), false);
+        source.sendFeedback(() -> Text.literal("§e• Granite Mesas: §7Flat-topped plateaus with steep cliffs"), false);
+        source.sendFeedback(() -> Text.literal("§e• Limestone Canyons: §7Deep carved valleys and gorges"), false);
+        source.sendFeedback(() -> Text.literal("§e• Salt Flats: §7Stark crystalline plains with hexagonal patterns"), false);
+
+        source.sendFeedback(() -> Text.literal(""), false);
         source.sendFeedback(() -> Text.literal("Use '/terradyne visit " + planetName + "' to explore!"), false);
+
+        return 1;
+    }
+
+// ALSO UPDATE the help command:
+
+    private static int showHelp(CommandContext<ServerCommandSource> context) {
+        ServerCommandSource source = context.getSource();
+
+        source.sendFeedback(() -> Text.literal("=== Terradyne Commands ==="), false);
+        source.sendFeedback(() -> Text.literal("§6/terradyne create <name> [type]"), false);
+        source.sendFeedback(() -> Text.literal("  §7Create a new planet"), false);
+        source.sendFeedback(() -> Text.literal("  §7Types: oceanic, desert, rocky"), false);
+        source.sendFeedback(() -> Text.literal(""), false);
+
+        source.sendFeedback(() -> Text.literal("§6Desert Planets:"), false);
+        source.sendFeedback(() -> Text.literal("  §7Always contain 4 specialized biomes:"), false);
+        source.sendFeedback(() -> Text.literal("  §e• Dune Sea §7- Rolling sand dunes"), false);
+        source.sendFeedback(() -> Text.literal("  §e• Granite Mesas §7- Flat-topped plateaus"), false);
+        source.sendFeedback(() -> Text.literal("  §e• Limestone Canyons §7- Deep carved valleys"), false);
+        source.sendFeedback(() -> Text.literal("  §e• Salt Flats §7- Crystalline plains"), false);
+        source.sendFeedback(() -> Text.literal("  §7Each biome covers ~25% of the planet"), false);
+        source.sendFeedback(() -> Text.literal(""), false);
+
+        source.sendFeedback(() -> Text.literal("§6/terradyne visit <name>"), false);
+        source.sendFeedback(() -> Text.literal("  §7Travel to a planet"), false);
+        source.sendFeedback(() -> Text.literal(""), false);
+        source.sendFeedback(() -> Text.literal("§6/terradyne list"), false);
+        source.sendFeedback(() -> Text.literal("  §7List all created planets"), false);
+        source.sendFeedback(() -> Text.literal(""), false);
+        source.sendFeedback(() -> Text.literal("§6/terradyne info <name>"), false);
+        source.sendFeedback(() -> Text.literal("  §7Show detailed planet information"), false);
+        source.sendFeedback(() -> Text.literal(""), false);
+        source.sendFeedback(() -> Text.literal("§7Example Commands:"), false);
+        source.sendFeedback(() -> Text.literal("§f/terradyne create Tatooine desert"), false);
+        source.sendFeedback(() -> Text.literal("§f/terradyne create Mars rocky"), false);
+        source.sendFeedback(() -> Text.literal("§f/terradyne create Aquatica oceanic"), false);
 
         return 1;
     }
@@ -407,12 +440,12 @@ public class CommandRegistry {
         }
     }
 
-    // DESERT PLANET INFO DISPLAY
+    // CommandRegistry.java - UPDATE the showDesertPlanetInfo method
     private static void showDesertPlanetInfo(ServerCommandSource source, String planetName) {
         DesertModel model = PlanetDimensionManager.getDesertModel(planetName);
         if (model != null) {
             DesertConfig config = model.getConfig();
-            source.sendFeedback(() -> Text.literal("§6=== Desert Characteristics ==="), false);
+            source.sendFeedback(() -> Text.literal("§6=== Desert Planet Characteristics ==="), false);
             source.sendFeedback(() -> Text.literal("Temperature: " +
                     String.format("%.1f", config.getSurfaceTemperature()) + "°C"), false);
             source.sendFeedback(() -> Text.literal("Humidity: " +
@@ -426,6 +459,13 @@ public class CommandRegistry {
             source.sendFeedback(() -> Text.literal("Gravity: " + String.format("%.2f", model.getGravity()) + "g"), false);
             source.sendFeedback(() -> Text.literal("Erosion Rate: " +
                     String.format("%.2f", model.getErosionRate())), false);
+            source.sendFeedback(() -> Text.literal(""), false);
+            source.sendFeedback(() -> Text.literal("§e=== Biome Distribution ==="), false);
+            source.sendFeedback(() -> Text.literal("§7This planet contains 4 specialized biomes:"), false);
+            source.sendFeedback(() -> Text.literal("• §eDune Sea §7(25%) - Rolling sand dunes with wind patterns"), false);
+            source.sendFeedback(() -> Text.literal("• §eGranite Mesas §7(25%) - Flat-topped plateaus with steep cliffs"), false);
+            source.sendFeedback(() -> Text.literal("• §eLimestone Canyons §7(25%) - Deep carved valleys and gorges"), false);
+            source.sendFeedback(() -> Text.literal("• §eSalt Flats §7(25%) - Stark crystalline plains with hexagonal patterns"), false);
         }
     }
 
@@ -491,35 +531,6 @@ public class CommandRegistry {
         source.sendFeedback(() -> Text.literal("§f/terradyne create Moon rocky moonlike"), false);
         source.sendFeedback(() -> Text.literal("§f/terradyne create Tatooine desert hot"), false);
         source.sendFeedback(() -> Text.literal("§f/terradyne create Ceres rocky asteroid"), false);
-
-        return 1;
-    }
-
-    // SHOW HELP
-    private static int showHelp(CommandContext<ServerCommandSource> context) {
-        ServerCommandSource source = context.getSource();
-
-        source.sendFeedback(() -> Text.literal("=== Terradyne Commands ==="), false);
-        source.sendFeedback(() -> Text.literal("§6/terradyne create <name> [type] [subtype]"), false);
-        source.sendFeedback(() -> Text.literal("  §7Create a new planet"), false);
-        source.sendFeedback(() -> Text.literal("  §7Types: oceanic, desert, rocky"), false);
-        source.sendFeedback(() -> Text.literal(""), false);
-        source.sendFeedback(() -> Text.literal("§6/terradyne visit <name>"), false);
-        source.sendFeedback(() -> Text.literal("  §7Travel to a planet"), false);
-        source.sendFeedback(() -> Text.literal(""), false);
-        source.sendFeedback(() -> Text.literal("§6/terradyne list"), false);
-        source.sendFeedback(() -> Text.literal("  §7List all created planets"), false);
-        source.sendFeedback(() -> Text.literal(""), false);
-        source.sendFeedback(() -> Text.literal("§6/terradyne info <name>"), false);
-        source.sendFeedback(() -> Text.literal("  §7Show detailed planet information"), false);
-        source.sendFeedback(() -> Text.literal(""), false);
-        source.sendFeedback(() -> Text.literal("§6/terradyne types"), false);
-        source.sendFeedback(() -> Text.literal("  §7List available planet types and subtypes"), false);
-        source.sendFeedback(() -> Text.literal(""), false);
-        source.sendFeedback(() -> Text.literal("§7Quick Examples:"), false);
-        source.sendFeedback(() -> Text.literal("§f/terradyne create Earth oceanic"), false);
-        source.sendFeedback(() -> Text.literal("§f/terradyne create Luna rocky moonlike"), false);
-        source.sendFeedback(() -> Text.literal("§f/terradyne create Mars desert"), false);
 
         return 1;
     }

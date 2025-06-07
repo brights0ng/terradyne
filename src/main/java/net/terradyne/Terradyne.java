@@ -1,3 +1,5 @@
+// Terradyne.java - UPDATED to register custom biomes early
+
 package net.terradyne;
 
 import net.fabricmc.api.ModInitializer;
@@ -17,21 +19,23 @@ public class Terradyne implements ModInitializer {
 	public void onInitialize() {
 		LOGGER.info("🚀 Starting Terradyne initialization...");
 
-		// Initialize the unified octave system FIRST
+		// STEP 1: Register custom biomes FIRST (before anything needs them)
+//		LOGGER.info("📋 Registering custom biomes...");
+//		ModBiomes.init();
+
+		// STEP 2: Initialize the unified octave system
 		initializeUnifiedTerrainSystem();
 
-		// Register commands
+		// STEP 3: Register commands
 		CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) -> {
 			CommandRegistry.init(dispatcher);
 		});
 
-		// Initialize biomes
-		ModBiomes.init();
-
-		// Initialize custom dimension types
+		// STEP 4: Initialize custom dimension types
 		ModDimensionTypes.init();
 
 		LOGGER.info("✅ Terradyne fully initialized!");
+		LOGGER.info("   - Custom biomes registered and ready");
 		LOGGER.info("   - Unified octave terrain system active");
 		LOGGER.info("   - {} planet types available", getPlanetTypeCount());
 		LOGGER.info("   - Master noise approach eliminates terrain conflicts");

@@ -236,7 +236,7 @@ public class UniversalChunkGenerator extends ChunkGenerator {
                     case GRANITE_MESAS -> Blocks.STONE.getDefaultState();
                     case LIMESTONE_CANYONS -> Blocks.CALCITE.getDefaultState();
                     case SALT_FLATS -> Blocks.WHITE_CONCRETE_POWDER.getDefaultState();
-                    case VOLCANIC_WASTELAND -> Blocks.BLACKSTONE.getDefaultState();
+                    case DUNE_SEA -> Blocks.SANDSTONE.getDefaultState();
                     default -> config.getSurfaceTemperature() > 45 ?
                             Blocks.RED_SAND.getDefaultState() : Blocks.SAND.getDefaultState();
                 };
