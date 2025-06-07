@@ -6,8 +6,6 @@ import net.minecraft.block.BlockState;
 import net.minecraft.block.Blocks;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.ChunkPos;
-import net.minecraft.util.math.noise.SimplexNoiseSampler;
-import net.minecraft.util.math.random.Random;
 import net.minecraft.world.ChunkRegion;
 import net.minecraft.world.HeightLimitView;
 import net.minecraft.world.Heightmap;
@@ -29,15 +27,21 @@ import net.terradyne.planet.biome.DesertBiomeSource;
 import net.terradyne.planet.config.DesertConfig;
 import net.terradyne.planet.model.IPlanetModel;
 import net.terradyne.planet.model.DesertModel;
+import net.terradyne.planet.terrain.*;
+import net.terradyne.planet.terrain.octave.IUnifiedOctave;
 
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 
 /**
- * Unified Octave Terrain Generator
- * Uses ONE master noise function sampled at different frequencies
- * Biomes control the amplitude of each frequency band
+ * Updated Universal Chunk Generator - Now Uses Configuration-Based Octave System!
+ *
+ * This generator:
+ * 1. Creates ONE MasterNoiseProvider per planet
+ * 2. Gets biome-configured octaves from OctaveRegistry
+ * 3. Applies octaves with their custom parameters
+ * 4. Results in smooth, customizable terrain per biome
  */
 public class UniversalChunkGenerator extends ChunkGenerator {
     public static final Codec<UniversalChunkGenerator> CODEC = RecordCodecBuilder.create(instance ->
@@ -47,25 +51,32 @@ public class UniversalChunkGenerator extends ChunkGenerator {
     );
 
     private final IPlanetModel planetModel;
-
-    // SINGLE master noise sampler for all terrain features
-    private final SimplexNoiseSampler masterNoise;
-
-    // Additional noise for specialized features (but still coordinated)
-    private final SimplexNoiseSampler windDirectionNoise;
+    private final MasterNoiseProvider masterNoiseProvider;
 
     public UniversalChunkGenerator(IPlanetModel planetModel, BiomeSource biomeSource) {
         super(biomeSource);
         this.planetModel = planetModel;
 
         if (planetModel != null) {
-            Random random = Random.create(planetModel.getConfig().getSeed());
-            this.masterNoise = new SimplexNoiseSampler(random);
-            this.windDirectionNoise = new SimplexNoiseSampler(random);
+            // Create THE master noise provider that all octaves will share
+            this.masterNoiseProvider = new MasterNoiseProvider(planetModel.getConfig().getSeed());
+
+            // Ensure octave registry is initialized
+            OctaveRegistry.initialize();
+
+            Terradyne.LOGGER.info("=== UNIVERSAL CHUNK GENERATOR INITIALIZED ===");
+            Terradyne.LOGGER.info("Planet: {}", planetModel.getConfig().getPlanetName());
+            Terradyne.LOGGER.info("Type: {}", planetModel.getType().getDisplayName());
+            Terradyne.LOGGER.info("Seed: {}", planetModel.getConfig().getSeed());
+
+            // Log available octaves for this planet type
+            List<IUnifiedOctave> availableOctaves = OctaveRegistry.getOctavesForPlanetType(planetModel.getType());
+            Terradyne.LOGGER.info("Available octaves: {}",
+                    availableOctaves.stream().map(IUnifiedOctave::getOctaveName).toList());
+
         } else {
             // Codec constructor
-            this.masterNoise = null;
-            this.windDirectionNoise = null;
+            this.masterNoiseProvider = null;
         }
     }
 
@@ -79,12 +90,20 @@ public class UniversalChunkGenerator extends ChunkGenerator {
                                                   NoiseConfig noiseConfig, StructureAccessor structureAccessor,
                                                   Chunk chunk) {
         return CompletableFuture.supplyAsync(() -> {
-            generateUnifiedTerrain(chunk, noiseConfig);
+            generateConfiguredTerrain(chunk, noiseConfig);
             return chunk;
         }, executor);
     }
 
-    private void generateUnifiedTerrain(Chunk chunk, NoiseConfig noiseConfig) {
+    /**
+     * NEW CONFIGURATION-BASED TERRAIN GENERATION
+     */
+    private void generateConfiguredTerrain(Chunk chunk, NoiseConfig noiseConfig) {
+        if (planetModel == null || masterNoiseProvider == null) {
+            generateFallbackTerrain(chunk);
+            return;
+        }
+
         ChunkPos chunkPos = chunk.getPos();
 
         for (int x = 0; x < 16; x++) {
@@ -92,235 +111,179 @@ public class UniversalChunkGenerator extends ChunkGenerator {
                 int worldX = chunkPos.getStartX() + x;
                 int worldZ = chunkPos.getStartZ() + z;
 
-                // Get biome type
+                // Get biome type at this location
                 IBiomeType biomeType = getBiomeTypeAt(worldX, worldZ);
 
-                // Generate unified terrain height using octaves of the same noise
-                UnifiedTerrainResult result = generateUnifiedHeight(worldX, worldZ, biomeType);
+                // Generate height using configured octaves
+                ConfiguredTerrainResult result = generateHeightUsingConfiguredOctaves(worldX, worldZ, biomeType);
 
-                // Fill terrain column
-                fillUnifiedTerrainColumn(chunk, x, z, result);
+                // Fill the terrain column
+                fillTerrainColumn(chunk, x, z, result);
             }
         }
     }
 
-    private UnifiedTerrainResult generateUnifiedHeight(int x, int z, IBiomeType biomeType) {
-        if (planetModel == null) {
-            return new UnifiedTerrainResult(60, 65, Blocks.STONE.getDefaultState());
+    /**
+     * Generate height using biome-configured octaves with their parameters
+     */
+    private ConfiguredTerrainResult generateHeightUsingConfiguredOctaves(int x, int z, IBiomeType biomeType) {
+        // Get configured octaves for this biome
+        List<OctaveRegistry.ConfiguredOctave> configuredOctaves =
+                OctaveRegistry.getConfiguredOctavesForBiome(biomeType, planetModel.getType());
+
+        if (configuredOctaves.isEmpty()) {
+            Terradyne.LOGGER.warn("No configured octaves available for biome {} on planet type {}",
+                    biomeType.getName(), planetModel.getType());
+            return createFallbackResult();
         }
 
-        // Get biome-specific octave settings
-        BiomeOctaveSettings settings = getBiomeOctaveSettings(biomeType);
+        // Create unified context with master noise provider
+        UnifiedOctaveContext context = new UnifiedOctaveContext(
+                planetModel,
+                biomeType,
+                masterNoiseProvider,
+                getBaseHeight()
+        );
 
-        // Generate base foundation height (lowest frequency)
-        double foundationOctave = masterNoise.sample(x * 0.0008, 0, z * 0.0008) * settings.foundationAmplitude;
+        // Apply all configured octaves
+        double totalHeight = context.getBaseFoundationHeight();
 
-        // Generate large-scale features (low frequency)
-        double largeOctave = masterNoise.sample(x * 0.002, 0, z * 0.002) * settings.largeFeatureAmplitude;
+        for (OctaveRegistry.ConfiguredOctave configuredOctave : configuredOctaves) {
+            try {
+                double contribution = configuredOctave.octave.generateHeightContribution(
+                        x, z, context, configuredOctave.config);
+                totalHeight += contribution;
 
-        // Generate medium-scale features (medium frequency)
-        double mediumOctave = masterNoise.sample(x * 0.008, 0, z * 0.008) * settings.mediumFeatureAmplitude;
+                // Debug logging for first few chunks
+                if (Math.abs(x) < 32 && Math.abs(z) < 32 && Math.abs(contribution) > 0.1) {
+                    Terradyne.LOGGER.debug("Octave {} contributed {} at {},{} (total: {})",
+                            configuredOctave.octave.getOctaveName(),
+                            String.format("%.2f", contribution),
+                            x, z,
+                            String.format("%.2f", totalHeight));
+                }
 
-        // Generate fine details (high frequency)
-        double fineOctave = masterNoise.sample(x * 0.03, 0, z * 0.03) * settings.fineDetailAmplitude;
+            } catch (Exception e) {
+                Terradyne.LOGGER.error("Error in configured octave {}: {}",
+                        configuredOctave.octave.getOctaveName(), e.getMessage());
+                e.printStackTrace();
+            }
+        }
 
-        // Generate carving/erosion (inverted noise at specific frequency)
-        double carvingOctave = generateCarvingOctave(x, z, settings);
+        int finalHeight = Math.max(getMinHeight(), (int) totalHeight);
+        int bedrockHeight = (int) context.getBaseFoundationHeight();
+        BlockState primaryBlock = getPrimaryBlockForBiome(biomeType);
 
-        // Wind-aligned features (rotated sampling of same noise)
-        double windOctave = generateWindAlignedOctave(x, z, settings);
-
-        // Combine all octaves smoothly
-        double totalHeight = settings.baseHeight +
-                foundationOctave +
-                largeOctave +
-                mediumOctave +
-                fineOctave +
-                carvingOctave +
-                windOctave;
-
-        int finalHeight = (int) Math.max(settings.baseHeight - 30, totalHeight);
-        int bedrockHeight = (int) (settings.baseHeight + foundationOctave);
-
-        BlockState material = getPrimaryBlockForBiome(biomeType);
-
-        return new UnifiedTerrainResult(bedrockHeight, finalHeight, material);
+        return new ConfiguredTerrainResult(bedrockHeight, finalHeight, primaryBlock, configuredOctaves);
     }
 
-    private double generateCarvingOctave(int x, int z, BiomeOctaveSettings settings) {
-        if (settings.carvingAmplitude == 0) {
-            return 0; // No carving for this biome
-        }
-
-        // Use ridge noise (absolute value) to create channels
-        double ridgeNoise = Math.abs(masterNoise.sample(x * 0.001, 0, z * 0.0003));
-
-        // Only carve narrow channels
-        if (ridgeNoise < 0.3) {
-            double carvingIntensity = (0.3 - ridgeNoise) / 0.3; // 0-1
-            return -carvingIntensity * settings.carvingAmplitude; // Negative = carve down
-        }
-
-        return 0;
+    /**
+     * Get base height for the planet type
+     */
+    private double getBaseHeight() {
+        return switch (planetModel.getType()) {
+            case DESERT, HOTHOUSE -> 55.0;
+            case OCEANIC -> 45.0;  // Lower for ocean worlds
+            case ROCKY -> 60.0;    // Higher for rocky worlds
+            case VOLCANIC -> 70.0; // Higher for volcanic buildup
+            case ICY -> 50.0;      // Lower for ice worlds
+            default -> 55.0;
+        };
     }
 
-    private double generateWindAlignedOctave(int x, int z, BiomeOctaveSettings settings) {
-        if (settings.windAmplitude == 0) {
-            return 0; // No wind features for this biome
-        }
-
-        // Get wind direction for this area
-        double windAngle = windDirectionNoise.sample(x * 0.0001, 0, z * 0.0001) * Math.PI;
-
-        // Rotate coordinates to align with wind
-        double windX = x * Math.cos(windAngle) - z * Math.sin(windAngle);
-        double windZ = x * Math.sin(windAngle) + z * Math.cos(windAngle);
-
-        // Sample master noise along wind direction (elongated features)
-        return masterNoise.sample(windX * 0.0004, 0, windZ * 0.006) * settings.windAmplitude;
+    /**
+     * Get minimum world height
+     */
+    private int getMinHeight() {
+        return switch (planetModel.getType()) {
+            case OCEANIC -> 20;  // Allow for deep oceans
+            case VOLCANIC -> 30; // Lava flow channels
+            default -> 35;
+        };
     }
 
-    private BiomeOctaveSettings getBiomeOctaveSettings(IBiomeType biomeType) {
-        if (planetModel.getType() != PlanetType.DESERT && planetModel.getType() != PlanetType.HOTHOUSE) {
-            // Non-desert planets - simple settings
-            return new BiomeOctaveSettings(55, 12, 8, 4, 2, 0, 0);
-        }
-
-        DesertModel desertModel = (DesertModel) planetModel;
-        DesertConfig config = desertModel.getConfig();
-
-        // Base values for desert planets
-        double baseHeight = 50;
-        double maxDuneHeight = Math.max(desertModel.getDuneHeight(), 60.0f);
-
-        if (biomeType instanceof DesertBiomeType desertBiome) {
-            return switch (desertBiome) {
-                case DUNE_SEA -> new BiomeOctaveSettings(
-                        baseHeight,                    // baseHeight
-                        8,                            // foundationAmplitude - gentle base
-                        maxDuneHeight * 0.4,          // largeFeatureAmplitude - major dunes
-                        maxDuneHeight * 0.25,         // mediumFeatureAmplitude - dune ridges
-                        maxDuneHeight * 0.15,         // fineDetailAmplitude - sand ripples
-                        0,                            // carvingAmplitude - NO canyons
-                        maxDuneHeight * 0.2           // windAmplitude - wind patterns
-                );
-
-                case GRANITE_MESAS -> new BiomeOctaveSettings(
-                        baseHeight + 10,              // baseHeight - higher rocky terrain
-                        15,                           // foundationAmplitude - rocky foundation
-                        8,                            // largeFeatureAmplitude - mesa tops
-                        4,                            // mediumFeatureAmplitude - rock variation
-                        2,                            // fineDetailAmplitude - surface texture
-                        25,                           // carvingAmplitude - deep canyons
-                        0                             // windAmplitude - no wind features
-                );
-
-                case LIMESTONE_CANYONS -> new BiomeOctaveSettings(
-                        baseHeight + 5,               // baseHeight
-                        12,                           // foundationAmplitude
-                        6,                            // largeFeatureAmplitude
-                        3,                            // mediumFeatureAmplitude
-                        1,                            // fineDetailAmplitude
-                        30,                           // carvingAmplitude - very deep canyons
-                        0                             // windAmplitude
-                );
-
-                case SCRUBLAND -> new BiomeOctaveSettings(
-                        baseHeight,                   // baseHeight
-                        10,                           // foundationAmplitude
-                        maxDuneHeight * 0.2,          // largeFeatureAmplitude - small dunes
-                        maxDuneHeight * 0.15,         // mediumFeatureAmplitude
-                        maxDuneHeight * 0.1,          // fineDetailAmplitude
-                        12,                           // carvingAmplitude - shallow channels
-                        maxDuneHeight * 0.1           // windAmplitude - light wind features
-                );
-
-                case SCORCHING_WASTE -> new BiomeOctaveSettings(
-                        baseHeight - 5,               // baseHeight - heat sink
-                        6,                            // foundationAmplitude - flatter
-                        maxDuneHeight * 0.3,          // largeFeatureAmplitude - heat dunes
-                        maxDuneHeight * 0.2,          // mediumFeatureAmplitude
-                        maxDuneHeight * 0.1,          // fineDetailAmplitude
-                        0,                            // carvingAmplitude - no water erosion
-                        maxDuneHeight * 0.25          // windAmplitude - strong heat winds
-                );
-
-                case DUST_BOWL -> new BiomeOctaveSettings(
-                        baseHeight - 3,               // baseHeight - wind-blown flat
-                        4,                            // foundationAmplitude - very flat
-                        2,                            // largeFeatureAmplitude - minimal
-                        1,                            // mediumFeatureAmplitude - minimal
-                        3,                            // fineDetailAmplitude - surface texture only
-                        0,                            // carvingAmplitude - no erosion
-                        5                             // windAmplitude - light wind patterns
-                );
-
-                case SALT_FLATS -> new BiomeOctaveSettings(
-                        baseHeight - 8,               // baseHeight - dried lake bed
-                        2,                            // foundationAmplitude - very flat
-                        1,                            // largeFeatureAmplitude - nearly flat
-                        0.5,                          // mediumFeatureAmplitude - nearly flat
-                        0.5,                          // fineDetailAmplitude - salt crystals
-                        8,                            // carvingAmplitude - drainage channels
-                        0                             // windAmplitude - no wind features
-                );
-
-                case VOLCANIC_WASTELAND -> new BiomeOctaveSettings(
-                        baseHeight + 15,              // baseHeight - volcanic buildup
-                        20,                           // foundationAmplitude - rough volcanic terrain
-                        12,                           // largeFeatureAmplitude - lava domes
-                        8,                            // mediumFeatureAmplitude - volcanic features
-                        4,                            // fineDetailAmplitude - rough surface
-                        18,                           // carvingAmplitude - lava channels
-                        0                             // windAmplitude - no wind features
-                );
-            };
-        }
-
-        // Fallback for unknown biomes
-        return new BiomeOctaveSettings(baseHeight, 8, 6, 3, 1, 0, 0);
-    }
-
+    /**
+     * Get biome type at world coordinates
+     */
     private IBiomeType getBiomeTypeAt(int worldX, int worldZ) {
         try {
             if (biomeSource instanceof DesertBiomeSource desertSource) {
                 return desertSource.getBiomeTypeAt(worldX, worldZ);
             }
 
-            if (planetModel != null) {
-                return switch (planetModel.getType()) {
-                    case DESERT -> DesertBiomeType.DUNE_SEA;
-                    default -> DesertBiomeType.DUNE_SEA;
+            // Fallback based on planet type
+            return switch (planetModel.getType()) {
+                case DESERT, HOTHOUSE -> DesertBiomeType.DUNE_SEA;
+                // TODO: Add other planet type fallbacks when you create their biome types
+                default -> DesertBiomeType.DUNE_SEA;
+            };
+
+        } catch (Exception e) {
+            Terradyne.LOGGER.warn("Error getting biome type at {},{}: {}", worldX, worldZ, e.getMessage());
+            return DesertBiomeType.DUNE_SEA;
+        }
+    }
+
+    /**
+     * Select appropriate block for biome
+     */
+    private BlockState getPrimaryBlockForBiome(IBiomeType biomeType) {
+        if (planetModel.getType() == PlanetType.DESERT || planetModel.getType() == PlanetType.HOTHOUSE) {
+            DesertConfig config = ((DesertModel) planetModel).getConfig();
+
+            if (biomeType instanceof DesertBiomeType desertBiome) {
+                return switch (desertBiome) {
+                    case GRANITE_MESAS -> Blocks.STONE.getDefaultState();
+                    case LIMESTONE_CANYONS -> Blocks.CALCITE.getDefaultState();
+                    case SALT_FLATS -> Blocks.WHITE_CONCRETE_POWDER.getDefaultState();
+                    case VOLCANIC_WASTELAND -> Blocks.BLACKSTONE.getDefaultState();
+                    default -> config.getSurfaceTemperature() > 45 ?
+                            Blocks.RED_SAND.getDefaultState() : Blocks.SAND.getDefaultState();
                 };
             }
 
-            return DesertBiomeType.DUNE_SEA;
-        } catch (Exception e) {
-            return DesertBiomeType.DUNE_SEA;
-        }
-    }
-
-    private BlockState getPrimaryBlockForBiome(IBiomeType biomeType) {
-        if (planetModel.getType() == PlanetType.DESERT) {
-            DesertConfig config = ((DesertModel) planetModel).getConfig();
-            if (config.getSurfaceTemperature() > 45) {
-                return Blocks.RED_SAND.getDefaultState();
-            } else {
-                return Blocks.SAND.getDefaultState();
-            }
+            return config.getSurfaceTemperature() > 45 ?
+                    Blocks.RED_SAND.getDefaultState() : Blocks.SAND.getDefaultState();
         }
 
-        return Blocks.STONE.getDefaultState();
+        return switch (planetModel.getType()) {
+            case OCEANIC -> Blocks.STONE.getDefaultState();
+            case ROCKY -> Blocks.COBBLESTONE.getDefaultState();
+            case VOLCANIC -> Blocks.BASALT.getDefaultState();
+            case ICY -> Blocks.SNOW_BLOCK.getDefaultState();
+            default -> Blocks.STONE.getDefaultState();
+        };
     }
 
-    private void fillUnifiedTerrainColumn(Chunk chunk, int x, int z, UnifiedTerrainResult result) {
+    /**
+     * Fill terrain column with blocks
+     */
+    private void fillTerrainColumn(Chunk chunk, int x, int z, ConfiguredTerrainResult result) {
         for (int y = chunk.getBottomY(); y <= result.finalHeight + 5; y++) {
             BlockPos pos = new BlockPos(x, y, z);
             BlockState blockState;
 
-            if (y <= result.bedrockHeight) {
+            // CREATE GRADUAL BEDROCK TRANSITION instead of hard cutoff
+            double bedrockTransitionZone = 4.0; // 4 block transition zone
+            double distanceAboveBedrock = y - result.bedrockHeight;
+
+            if (distanceAboveBedrock <= 0) {
+                // Pure bedrock
                 blockState = getBedrockBlock();
+            } else if (distanceAboveBedrock < bedrockTransitionZone) {
+                // Transition zone - mix bedrock and surface material based on noise
+                MasterNoiseProvider noise = masterNoiseProvider;
+                double transitionNoise = noise.sampleAt(x * 0.1, y * 0.05, z * 0.1);
+                double transitionFactor = distanceAboveBedrock / bedrockTransitionZone;
+
+                // Smooth the transition with noise
+                if (transitionNoise < (transitionFactor - 0.5)) {
+                    blockState = getBedrockBlock();
+                } else {
+                    blockState = result.primaryBlock;
+                }
             } else if (y <= result.finalHeight) {
+                // Pure surface material
                 blockState = result.primaryBlock;
             } else {
                 blockState = Blocks.AIR.getDefaultState();
@@ -332,47 +295,64 @@ public class UniversalChunkGenerator extends ChunkGenerator {
         }
     }
 
+    /**
+     * Get bedrock block based on planet type
+     */
     private BlockState getBedrockBlock() {
         return switch (planetModel.getType()) {
             case VOLCANIC -> Blocks.BASALT.getDefaultState();
             case ICY -> Blocks.PACKED_ICE.getDefaultState();
-            case DESERT -> Blocks.SANDSTONE.getDefaultState();
+            case DESERT, HOTHOUSE -> Blocks.SANDSTONE.getDefaultState();
+            case OCEANIC -> Blocks.DEEPSLATE.getDefaultState();
+            case ROCKY -> Blocks.COBBLED_DEEPSLATE.getDefaultState();
             default -> Blocks.DEEPSLATE.getDefaultState();
         };
     }
 
-    // Data classes
-    private static class BiomeOctaveSettings {
-        final double baseHeight;
-        final double foundationAmplitude;      // Large-scale base terrain
-        final double largeFeatureAmplitude;    // Major features (big dunes, mesas)
-        final double mediumFeatureAmplitude;   // Medium features (dune ridges)
-        final double fineDetailAmplitude;     // Fine details (ripples, texture)
-        final double carvingAmplitude;        // Carving/erosion depth
-        final double windAmplitude;           // Wind-aligned features
+    /**
+     * Fallback terrain generation if system fails
+     */
+    private void generateFallbackTerrain(Chunk chunk) {
+        Terradyne.LOGGER.warn("Using fallback terrain generation");
 
-        BiomeOctaveSettings(double baseHeight, double foundationAmplitude, double largeFeatureAmplitude,
-                            double mediumFeatureAmplitude, double fineDetailAmplitude,
-                            double carvingAmplitude, double windAmplitude) {
-            this.baseHeight = baseHeight;
-            this.foundationAmplitude = foundationAmplitude;
-            this.largeFeatureAmplitude = largeFeatureAmplitude;
-            this.mediumFeatureAmplitude = mediumFeatureAmplitude;
-            this.fineDetailAmplitude = fineDetailAmplitude;
-            this.carvingAmplitude = carvingAmplitude;
-            this.windAmplitude = windAmplitude;
+        ChunkPos chunkPos = chunk.getPos();
+        for (int x = 0; x < 16; x++) {
+            for (int z = 0; z < 16; z++) {
+                for (int y = chunk.getBottomY(); y <= 65; y++) {
+                    BlockPos pos = new BlockPos(x, y, z);
+
+                    if (y <= 50) {
+                        chunk.setBlockState(pos, Blocks.STONE.getDefaultState(), false);
+                    } else if (y <= 60) {
+                        chunk.setBlockState(pos, Blocks.DIRT.getDefaultState(), false);
+                    }
+                }
+            }
         }
     }
 
-    private static class UnifiedTerrainResult {
+    /**
+     * Create fallback result if system fails
+     */
+    private ConfiguredTerrainResult createFallbackResult() {
+        return new ConfiguredTerrainResult(50, 60, Blocks.STONE.getDefaultState(), List.of());
+    }
+
+    /**
+     * Data class for configured terrain results
+     */
+    private static class ConfiguredTerrainResult {
         final int bedrockHeight;
         final int finalHeight;
         final BlockState primaryBlock;
+        final List<OctaveRegistry.ConfiguredOctave> appliedOctaves;
 
-        UnifiedTerrainResult(int bedrockHeight, int finalHeight, BlockState primaryBlock) {
+        ConfiguredTerrainResult(int bedrockHeight, int finalHeight, BlockState primaryBlock,
+                                List<OctaveRegistry.ConfiguredOctave> appliedOctaves) {
             this.bedrockHeight = bedrockHeight;
             this.finalHeight = finalHeight;
             this.primaryBlock = primaryBlock;
+            this.appliedOctaves = appliedOctaves;
         }
     }
 
@@ -390,22 +370,30 @@ public class UniversalChunkGenerator extends ChunkGenerator {
     public int getWorldHeight() { return 384; }
 
     @Override
-    public int getSeaLevel() { return 50; }
+    public int getSeaLevel() {
+        return switch (planetModel != null ? planetModel.getType() : PlanetType.ROCKY) {
+            case OCEANIC -> 60;
+            case DESERT, HOTHOUSE -> 45;
+            default -> 50;
+        };
+    }
 
     @Override
     public int getMinimumY() { return -64; }
 
     @Override
     public int getHeight(int x, int z, Heightmap.Type heightmap, HeightLimitView world, NoiseConfig noiseConfig) {
+        if (planetModel == null) return 60;
+
         IBiomeType biomeType = getBiomeTypeAt(x, z);
-        UnifiedTerrainResult result = generateUnifiedHeight(x, z, biomeType);
+        ConfiguredTerrainResult result = generateHeightUsingConfiguredOctaves(x, z, biomeType);
         return result.finalHeight;
     }
 
     @Override
     public VerticalBlockSample getColumnSample(int x, int z, HeightLimitView world, NoiseConfig noiseConfig) {
         IBiomeType biomeType = getBiomeTypeAt(x, z);
-        UnifiedTerrainResult result = generateUnifiedHeight(x, z, biomeType);
+        ConfiguredTerrainResult result = generateHeightUsingConfiguredOctaves(x, z, biomeType);
 
         BlockState[] column = new BlockState[world.getHeight()];
         for (int y = 0; y < world.getHeight(); y++) {
@@ -424,8 +412,24 @@ public class UniversalChunkGenerator extends ChunkGenerator {
 
     @Override
     public void getDebugHudText(List<String> text, NoiseConfig noiseConfig, BlockPos pos) {
-        text.add("Unified Octave Terrain Generation");
-        text.add("Planet: " + (planetModel != null ? planetModel.getConfig().getPlanetName() : "Unknown"));
-        text.add("Single master noise function with biome-controlled octaves");
+        text.add("=== CONFIGURED OCTAVE TERRAIN ===");
+        if (planetModel != null) {
+            text.add("Planet: " + planetModel.getConfig().getPlanetName());
+            text.add("Type: " + planetModel.getType().getDisplayName());
+
+            IBiomeType biome = getBiomeTypeAt(pos.getX(), pos.getZ());
+            text.add("Biome: " + biome.getName());
+
+            List<OctaveRegistry.ConfiguredOctave> configuredOctaves =
+                    OctaveRegistry.getConfiguredOctavesForBiome(biome, planetModel.getType());
+            text.add("Configured Octaves: " + configuredOctaves.size());
+
+            for (OctaveRegistry.ConfiguredOctave configuredOctave : configuredOctaves) {
+                text.add("  " + configuredOctave.octave.getOctaveName() +
+                        " " + configuredOctave.config.getAllParameters().toString());
+            }
+        } else {
+            text.add("No planet model loaded");
+        }
     }
 }

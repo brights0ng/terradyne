@@ -1,19 +1,19 @@
 package net.terradyne.planet.biome;
 
 import net.terradyne.planet.PlanetType;
-
+import net.terradyne.planet.terrain.OctaveConfiguration;
 import java.util.List;
 
 /**
- * Generic biome interface
- * Biomes now specify which terrain generators they want applied
+ * Updated biome interface - now biomes directly configure their octaves
  */
 public interface IBiomeType {
     String getName();
     PlanetType getPlanetType();
 
     /**
-     * Returns the octave types this biome requests for terrain generation
+     * Get the configured octaves this biome wants applied
+     * Each configuration specifies the octave class and its parameters
      */
-    List<OctaveType> getRequestedOctaveTypes();
+    List<OctaveConfiguration> getOctaveConfigurations();
 }
