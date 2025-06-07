@@ -43,13 +43,16 @@ public class PlanetDimensionManager {
     private static final Map<String, OceanicModel> OCEANIC_MODELS = new ConcurrentHashMap<>();
     private static final Map<String, RockyModel> ROCKY_MODELS = new ConcurrentHashMap<>();
 
-    public static RegistryKey<World> createDesertPlanet(MinecraftServer server, DesertModel desertModel) {
-        String planetName = desertModel.getConfig().getPlanetName().toLowerCase().replace(" ", "_");
+    // Updated createDesertPlanet method for PlanetDimensionManager.java
+// Replace the existing method with this cleaned-up version:
 
-        Terradyne.LOGGER.info("=== CREATING DESERT PLANET (UNIVERSAL SYSTEM) ===");
-        Terradyne.LOGGER.info("Planet: " + planetName);
-        Terradyne.LOGGER.info("Temperature: " + desertModel.getConfig().getSurfaceTemperature() + "°C");
-        Terradyne.LOGGER.info("Sand Density: " + desertModel.getConfig().getSandDensity());
+    public static RegistryKey<World> createDesertPlanet(MinecraftServer server, DesertModel model) {
+        String planetName = model.getConfig().getPlanetName().toLowerCase().replace(" ", "_");
+
+        Terradyne.LOGGER.info("=== CREATING DESERT PLANET ===");
+        Terradyne.LOGGER.info("Planet: {}", planetName);
+        Terradyne.LOGGER.info("Temperature: {}°C", model.getConfig().getSurfaceTemperature());
+        Terradyne.LOGGER.info("Sand Density: {}%", model.getConfig().getSandDensity() * 100);
 
         if (PLANET_DIMENSIONS.containsKey(planetName)) {
             return PLANET_DIMENSIONS.get(planetName);
@@ -59,28 +62,72 @@ public class PlanetDimensionManager {
             Identifier dimensionId = new Identifier(Terradyne.MOD_ID, planetName);
             RegistryKey<World> worldKey = RegistryKey.of(RegistryKeys.WORLD, dimensionId);
 
-            RegistryEntry<DimensionType> dimensionTypeEntry = selectDimensionTypeForDesert(server, desertModel);
-            BiomeSource biomeSource = createDesertBiomeSource(server, desertModel);
+            RegistryEntry<DimensionType> dimensionType = selectDimensionTypeForDesert(server, model);
+            BiomeSource biomeSource = createDesertBiomeSource(server, model);
+            UniversalChunkGenerator chunkGenerator = new UniversalChunkGenerator(model, biomeSource);
 
-            // USE UNIVERSAL CHUNK GENERATOR INSTEAD OF DesertChunkGenerator
-            UniversalChunkGenerator chunkGenerator = new UniversalChunkGenerator(desertModel, biomeSource);
-
-            DimensionOptions dimensionOptions = new DimensionOptions(dimensionTypeEntry, chunkGenerator);
+            DimensionOptions dimensionOptions = new DimensionOptions(dimensionType, chunkGenerator);
             ServerWorld serverWorld = createServerWorld(server, worldKey, dimensionOptions);
 
-            // Store everything
+            // Store planet data
             PLANET_DIMENSIONS.put(planetName, worldKey);
             PLANET_WORLDS.put(planetName, serverWorld);
-            PLANET_TYPES.put(planetName, desertModel.getConfig().getType());
-            DESERT_MODELS.put(planetName, desertModel);
+            PLANET_TYPES.put(planetName, model.getConfig().getType());
+            DESERT_MODELS.put(planetName, model);
 
-            Terradyne.LOGGER.info("✅ Desert planet created successfully with Universal system: " + planetName);
+            Terradyne.LOGGER.info("✅ Desert planet '{}' created successfully", planetName);
+            logBiomeSourceStatus(biomeSource);
+
             return worldKey;
 
         } catch (Exception e) {
-            Terradyne.LOGGER.error("Failed to create desert planet: " + planetName, e);
+            Terradyne.LOGGER.error("Failed to create desert planet: {}", planetName, e);
             throw new RuntimeException("Desert planet creation failed: " + e.getMessage(), e);
         }
+    }
+
+    // NEW METHOD: Create desert biome source (simplified)
+    private static BiomeSource createDesertBiomeSource(MinecraftServer server, DesertModel model) {
+        Terradyne.LOGGER.info("Creating desert biome source...");
+
+        DesertBiomeSource biomeSource = new DesertBiomeSource(model, server);
+
+        Terradyne.LOGGER.info("✅ Desert biome source created");
+        return biomeSource;
+    }
+
+    // NEW METHOD: Log biome source status
+    private static void logBiomeSourceStatus(BiomeSource biomeSource) {
+        if (biomeSource instanceof DesertBiomeSource desertBiomeSource) {
+            if (desertBiomeSource.isUsingCustomBiomes()) {
+                Terradyne.LOGGER.info("  ✓ Using custom biomes from data generation");
+            } else {
+                Terradyne.LOGGER.info("  ⚠ Using vanilla biomes with custom terrain");
+                Terradyne.LOGGER.info("    Run 'gradlew runDatagen' to generate custom biomes");
+            }
+            Terradyne.LOGGER.info("  Available terrain types: {}", desertBiomeSource.getAvailableTerrainTypes().size());
+        }
+    }
+
+    // UPDATED BIOME SOURCE CREATION for other planet types (simplified naming)
+    private static BiomeSource createOceanicBiomeSource(MinecraftServer server, OceanicModel model) {
+        Terradyne.LOGGER.info("Creating oceanic biome source (vanilla biomes)...");
+
+        Registry<Biome> biomeRegistry = server.getRegistryManager().get(RegistryKeys.BIOME);
+        RegistryEntry<Biome> oceanBiome = biomeRegistry.getEntry(BiomeKeys.OCEAN).orElseThrow();
+
+        return new FixedBiomeSource(oceanBiome);
+    }
+
+    private static BiomeSource createRockyBiomeSource(MinecraftServer server, RockyModel model) {
+        Terradyne.LOGGER.info("Creating rocky biome source (vanilla biomes)...");
+
+        Registry<Biome> biomeRegistry = server.getRegistryManager().get(RegistryKeys.BIOME);
+        RegistryKey<Biome> biomeKey = model.getConfig().getAtmosphericDensity() < 0.02f ?
+                BiomeKeys.END_BARRENS : BiomeKeys.BADLANDS;
+
+        RegistryEntry<Biome> biome = biomeRegistry.getEntry(biomeKey).orElseThrow();
+        return new FixedBiomeSource(biome);
     }
 
     // TELEPORTATION
@@ -286,63 +333,6 @@ public class PlanetDimensionManager {
             Registry<DimensionType> registry = server.getRegistryManager().get(RegistryKeys.DIMENSION_TYPE);
             return registry.getEntry(DimensionTypes.OVERWORLD).orElseThrow();
         }
-    }
-
-    // PlanetDimensionManager.java - UPDATE for new biome distribution
-
-    // PlanetDimensionManager.java - UPDATED createDesertBiomeSource method
-
-    private static BiomeSource createDesertBiomeSource(MinecraftServer server, DesertModel model) {
-        Terradyne.LOGGER.info("=== CREATING CUSTOM DESERT BIOME SOURCE ===");
-        Terradyne.LOGGER.info("Planet: {}", model.getConfig().getPlanetName());
-        Terradyne.LOGGER.info("Temperature: {}°C", model.getConfig().getSurfaceTemperature());
-        Terradyne.LOGGER.info("Humidity: {}", model.getConfig().getHumidity());
-        Terradyne.LOGGER.info("Rock Type: {}", model.getConfig().getDominantRock());
-
-        try {
-            // Create the custom biome-enabled DesertBiomeSource
-            DesertBiomeSource biomeSource = new DesertBiomeSource(model);
-
-            // Initialize it with the server (this will register custom biomes if needed)
-            biomeSource.init(server);
-
-            // Log success with custom biomes
-            Terradyne.LOGGER.info("✅ Custom biomes loaded: {}", biomeSource.getBiomeDistribution());
-            Terradyne.LOGGER.info("🎨 Using custom biome properties (no vanilla biome behaviors)");
-
-            return biomeSource;
-
-        } catch (Exception e) {
-            Terradyne.LOGGER.error("❌ Failed to create custom DesertBiomeSource: {}", e.getMessage());
-            Terradyne.LOGGER.error("🚨 This means custom biomes could not be registered with server!");
-            e.printStackTrace();
-
-            // FALLBACK: Create a fixed biome source with vanilla desert biome
-            Terradyne.LOGGER.warn("⚠️  Using vanilla desert biome as emergency fallback");
-            Registry<Biome> biomeRegistry = server.getRegistryManager().get(RegistryKeys.BIOME);
-            RegistryEntry<Biome> desertBiome = biomeRegistry.getEntry(BiomeKeys.DESERT).orElseThrow();
-            return new FixedBiomeSource(desertBiome);
-        }
-    }
-
-    private static BiomeSource createOceanicBiomeSource(MinecraftServer server, OceanicModel model) {
-        Registry<Biome> biomeRegistry = server.getRegistryManager().get(RegistryKeys.BIOME);
-        RegistryEntry<Biome> oceanBiome = biomeRegistry.getEntry(BiomeKeys.OCEAN).orElseThrow();
-        return new FixedBiomeSource(oceanBiome);
-    }
-
-    private static BiomeSource createRockyBiomeSource(MinecraftServer server, RockyModel model) {
-        Registry<Biome> biomeRegistry = server.getRegistryManager().get(RegistryKeys.BIOME);
-
-        RegistryKey<Biome> biomeKey;
-        if (model.getConfig().getAtmosphericDensity() < 0.02f) {
-            biomeKey = BiomeKeys.END_BARRENS; // No atmosphere
-        } else {
-            biomeKey = BiomeKeys.BADLANDS; // Thin atmosphere, barren
-        }
-
-        RegistryEntry<Biome> biome = biomeRegistry.getEntry(biomeKey).orElseThrow();
-        return new FixedBiomeSource(biome);
     }
 
     // CORE WORLD CREATION

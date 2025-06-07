@@ -7,14 +7,14 @@ import net.terradyne.planet.model.IPlanetModel;
  * Updated context for unified octave generation
  * Now uses MasterNoiseProvider instead of individual noise samplers
  */
-public class UnifiedOctaveContext {
+public class OctaveContext {
     private final IPlanetModel planetModel;
     private final IBiomeType currentBiome;
     private final MasterNoiseProvider noiseProvider;    // THE unified noise source
     private final double baseFoundationHeight;          // Base terrain height
 
-    public UnifiedOctaveContext(IPlanetModel planetModel, IBiomeType biome,
-                                MasterNoiseProvider noiseProvider, double baseHeight) {
+    public OctaveContext(IPlanetModel planetModel, IBiomeType biome,
+                         MasterNoiseProvider noiseProvider, double baseHeight) {
         this.planetModel = planetModel;
         this.currentBiome = biome;
         this.noiseProvider = noiseProvider;

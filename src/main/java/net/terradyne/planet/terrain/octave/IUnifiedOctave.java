@@ -2,7 +2,7 @@ package net.terradyne.planet.terrain.octave;
 
 import net.terradyne.planet.PlanetType;
 import net.terradyne.planet.terrain.OctaveConfiguration;
-import net.terradyne.planet.terrain.UnifiedOctaveContext;
+import net.terradyne.planet.terrain.OctaveContext;
 
 import java.util.Set;
 
@@ -18,7 +18,7 @@ public interface IUnifiedOctave {
      * @param config Biome-specific configuration for this octave
      * @return Height contribution (can be positive or negative)
      */
-    double generateHeightContribution(int x, int z, UnifiedOctaveContext context,
+    double generateHeightContribution(int x, int z, OctaveContext context,
                                       OctaveConfiguration config);
 
     /**

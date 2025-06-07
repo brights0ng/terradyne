@@ -1,5 +1,3 @@
-// DesertBiomeType.java - UPDATED with better biome configurations
-
 package net.terradyne.planet.biome;
 
 import net.terradyne.planet.PlanetType;
@@ -9,141 +7,119 @@ import net.terradyne.planet.terrain.octave.*;
 import java.util.List;
 
 /**
- * Updated DesertBiomeType - 4 well-designed biomes
+ * UPDATED DesertBiomeType - Now with only 4 biomes and rolling terrain under mesas
  */
 public enum DesertBiomeType implements IBiomeType {
-
-    /**
-     * DUNE SEA - Rolling sand dunes with wind patterns
-     * Smooth, flowing terrain with large dune formations
-     */
     DUNE_SEA("dune_sea") {
         @Override
         public List<OctaveConfiguration> getOctaveConfigurations() {
+            // KEEPING the working Dune Sea configuration as-is
             return List.of(
-                    // Gentle foundation
                     new OctaveConfiguration(FoundationOctave.class)
-                            .withParameter("amplitude", 8.0)
-                            .withParameter("frequency", 0.0003),
+                            .withParameter("amplitude", 2.0)
+                            .withParameter("frequency", 0.0001),
 
-                    // Large flowing dunes
                     new OctaveConfiguration(DuneOctave.class)
                             .withParameter("maxHeight", 45.0)
-                            .withParameter("minHeight", 1.0)
-                            .withParameter("duneSpacing", 0.003)
-                            .withParameter("sharpness", 2.0)
+                            .withParameter("minHeight", 10.0)
+                            .withParameter("duneSpacing", 0.004)
+                            .withParameter("sharpness", 4)
                             .withParameter("elevationVariation", 30.0),
 
-                    // Fine sand ripples
                     new OctaveConfiguration(DetailOctave.class)
-                            .withParameter("intensity", 0.8)
-                            .withParameter("frequency", 0.025)
+                            .withParameter("intensity", 0.01)
+                            .withParameter("frequency", 0.08)
             );
         }
     },
 
-    /**
-     * GRANITE MESA - Flat-topped elevated plateaus with steep sides
-     * Dramatic vertical terrain with mesa formations and erosion
-     */
     GRANITE_MESAS("granite_mesas") {
         @Override
         public List<OctaveConfiguration> getOctaveConfigurations() {
+            // ENHANCED with rolling terrain base underneath the dramatic mesas
             return List.of(
-                    // Higher foundation for elevated terrain
                     new OctaveConfiguration(FoundationOctave.class)
-                            .withParameter("amplitude", 20.0)
-                            .withParameter("frequency", 0.0008),
+                            .withParameter("amplitude", 6.0)      // Moderate base for mesa contrast
+                            .withParameter("frequency", 0.0004),
 
-                    // Dramatic mesa formations
-                    new OctaveConfiguration(MesaOctave.class)
-                            .withParameter("mesaHeight", 50.0)
-                            .withParameter("plateauSize", 0.012)
-                            .withParameter("steepness", 3.5),
+                    new OctaveConfiguration(RollingTerrainOctave.class)  // NEW! Gentle terrain base
+                            .withParameter("hillHeight", 12.0)    // Rolling hills at mesa base
+                            .withParameter("hillFrequency", 0.015) // Gentle undulation
+                            .withParameter("rockOutcropIntensity", 0.4)  // Scattered rocks
+                            .withParameter("washDepth", 3.0)      // Shallow drainage
+                            .withParameter("undulationStrength", 0.8),   // Moderate rolling
 
-                    // Mesa erosion and cliff detail
-                    new OctaveConfiguration(CanyonOctave.class)
-                            .withParameter("depth", 15.0)
-                            .withParameter("width", 0.015)
-                            .withParameter("complexity", 0.4)
-                            .withParameter("steepness", 2.0),
+                    new OctaveConfiguration(MesaOctave.class)     // Dramatic mesas rise from rolling base
+                            .withParameter("mesaHeight", 70.0)    // Tall dramatic mesas
+                            .withParameter("plateauFrequency", 0.006)  // Larger mesa formations
+                            .withParameter("steepness", 6.0)      // Very steep mesa sides
+                            .withParameter("erosionIntensity", 0.8)    // Heavy erosion for realism
+                            .withParameter("layering", 1.2),      // Visible rock layers
 
-                    // Rocky surface texture
+                    new OctaveConfiguration(CanyonOctave.class)   // Canyons between mesas
+                            .withParameter("maxDepth", 35.0)      // Deep canyons between mesas
+                            .withParameter("channelFrequency", 0.004)
+                            .withParameter("meandering", 1.5)     // Winding canyon systems
+                            .withParameter("wallSteepness", 4.0)  // Steep canyon walls
+                            .withParameter("tributaryDensity", 0.6),  // Moderate tributary network
+
                     new OctaveConfiguration(DetailOctave.class)
-                            .withParameter("intensity", 1.2)
+                            .withParameter("intensity", 0.12)     // Rocky surface detail
                             .withParameter("frequency", 0.02)
             );
         }
     },
 
-    /**
-     * LIMESTONE CANYONS - Deep carved canyons and winding valleys
-     * Intricate erosion patterns with layered canyon walls
-     */
     LIMESTONE_CANYONS("limestone_canyons") {
         @Override
         public List<OctaveConfiguration> getOctaveConfigurations() {
+            // LIMESTONE-FOCUSED canyon landscape
             return List.of(
-                    // Moderate foundation
                     new OctaveConfiguration(FoundationOctave.class)
-                            .withParameter("amplitude", 12.0)
-                            .withParameter("frequency", 0.0006),
+                            .withParameter("amplitude", 12.0)     // Moderate base terrain
+                            .withParameter("frequency", 0.0008),
 
-                    // Deep primary canyons
-                    new OctaveConfiguration(CanyonOctave.class)
-                            .withParameter("depth", 40.0)
-                            .withParameter("width", 0.004)
-                            .withParameter("complexity", 0.9)
-                            .withParameter("networkDensity", 1.5)
-                            .withParameter("steepness", 1.8),
+                    new OctaveConfiguration(CanyonOctave.class)   // PRIMARY feature - deep canyons
+                            .withParameter("maxDepth", 50.0)      // VERY deep limestone canyons
+                            .withParameter("channelFrequency", 0.003)
+                            .withParameter("meandering", 2.0)     // Highly meandering like real limestone canyons
+                            .withParameter("wallSteepness", 5.0)  // Very steep limestone walls
+                            .withParameter("tributaryDensity", 1.2),  // Dense tributary network
 
-                    // Secondary canyon network
-                    new OctaveConfiguration(CanyonOctave.class)
-                            .withParameter("depth", 18.0)
-                            .withParameter("width", 0.012)
-                            .withParameter("complexity", 0.6)
-                            .withParameter("networkDensity", 0.8)
-                            .withParameter("steepness", 1.2),
+                    new OctaveConfiguration(CanyonOctave.class)   // SECONDARY canyon system at different scale
+                            .withParameter("maxDepth", 25.0)      // Secondary canyon depth
+                            .withParameter("channelFrequency", 0.008)  // Smaller scale canyons
+                            .withParameter("meandering", 1.0)
+                            .withParameter("wallSteepness", 3.0)
+                            .withParameter("tributaryDensity", 0.8),
 
-                    // Canyon wall detail and ledges
                     new OctaveConfiguration(DetailOctave.class)
-                            .withParameter("intensity", 0.6)
-                            .withParameter("frequency", 0.018)
+                            .withParameter("intensity", 0.15)     // Limestone texture
+                            .withParameter("frequency", 0.015)
             );
         }
     },
 
-    /**
-     * SALT FLATS - Extremely flat crystalline plains with hexagonal patterns
-     * Very low terrain with intricate salt crystal formations
-     */
     SALT_FLATS("salt_flats") {
         @Override
         public List<OctaveConfiguration> getOctaveConfigurations() {
+            // ULTRA-flat with subtle drainage patterns
             return List.of(
-                    // Very flat foundation
                     new OctaveConfiguration(FoundationOctave.class)
-                            .withParameter("amplitude", 2.0)
+                            .withParameter("amplitude", 2.0)      // Extremely flat base
                             .withParameter("frequency", 0.0002),
 
-                    // Subtle drainage channels
-                    new OctaveConfiguration(CanyonOctave.class)
-                            .withParameter("depth", 6.0)
-                            .withParameter("width", 0.003)
-                            .withParameter("complexity", 0.2)
-                            .withParameter("steepness", 0.8),
+                    new OctaveConfiguration(CanyonOctave.class)   // Very shallow drainage only
+                            .withParameter("maxDepth", 4.0)       // Very shallow channels
+                            .withParameter("channelFrequency", 0.006)
+                            .withParameter("meandering", 0.3)     // Straighter drainage
+                            .withParameter("wallSteepness", 1.2)  // Very gentle slopes
+                            .withParameter("tributaryDensity", 0.2),  // Minimal tributaries
 
-                    // Salt crystal patterns
                     new OctaveConfiguration(DetailOctave.class)
-                            .withParameter("intensity", 0.3)
+                            .withParameter("intensity", 0.05)     // Very fine surface detail
                             .withParameter("frequency", 0.035)
-                            .withParameter("saltPatterns", true),
-
-                    // Larger hexagonal salt formations
-                    new OctaveConfiguration(DetailOctave.class)
-                            .withParameter("intensity", 0.15)
-                            .withParameter("frequency", 0.008)
-                            .withParameter("saltPatterns", true)
+                            .withParameter("saltPatterns", true)  // Special salt crystal patterns
             );
         }
     };

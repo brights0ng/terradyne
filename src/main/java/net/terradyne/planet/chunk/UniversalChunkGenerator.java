@@ -138,7 +138,7 @@ public class UniversalChunkGenerator extends ChunkGenerator {
         }
 
         // Create unified context with master noise provider
-        UnifiedOctaveContext context = new UnifiedOctaveContext(
+        OctaveContext context = new OctaveContext(
                 planetModel,
                 biomeType,
                 masterNoiseProvider,
@@ -202,25 +202,61 @@ public class UniversalChunkGenerator extends ChunkGenerator {
         };
     }
 
+    // Updated getBiomeTypeAt method for UniversalChunkGenerator.java
+// Replace the existing getBiomeTypeAt method with this:
+
+    // Updated methods for UniversalChunkGenerator.java
+// Replace these methods in your existing file:
+
     /**
-     * Get biome type at world coordinates
+     * Get biome type at world coordinates (simplified)
      */
     private IBiomeType getBiomeTypeAt(int worldX, int worldZ) {
         try {
             if (biomeSource instanceof DesertBiomeSource desertSource) {
-                return desertSource.getBiomeTypeAt(worldX, worldZ);
+                return desertSource.getTerrainTypeAt(worldX, worldZ);
             }
 
             // Fallback based on planet type
             return switch (planetModel.getType()) {
                 case DESERT, HOTHOUSE -> DesertBiomeType.DUNE_SEA;
-                // TODO: Add other planet type fallbacks when you create their biome types
+                // TODO: Add other planet type fallbacks
                 default -> DesertBiomeType.DUNE_SEA;
             };
 
         } catch (Exception e) {
             Terradyne.LOGGER.warn("Error getting biome type at {},{}: {}", worldX, worldZ, e.getMessage());
             return DesertBiomeType.DUNE_SEA;
+        }
+    }
+
+    /**
+     * Updated debug HUD with cleaner information
+     */
+    @Override
+    public void getDebugHudText(List<String> text, NoiseConfig noiseConfig, BlockPos pos) {
+        text.add("=== TERRADYNE TERRAIN SYSTEM ===");
+        if (planetModel != null) {
+            text.add("Planet: " + planetModel.getConfig().getPlanetName());
+            text.add("Type: " + planetModel.getType().getDisplayName());
+
+            IBiomeType terrainType = getBiomeTypeAt(pos.getX(), pos.getZ());
+            text.add("Terrain Type: " + terrainType.getName());
+
+            if (biomeSource instanceof DesertBiomeSource desertSource) {
+                text.add("Biome Source: Desert (" + (desertSource.isUsingCustomBiomes() ? "Custom" : "Vanilla") + ")");
+                text.add("Terrain Types: " + desertSource.getAvailableTerrainTypes().size());
+            }
+
+            List<OctaveRegistry.ConfiguredOctave> configuredOctaves =
+                    OctaveRegistry.getConfiguredOctavesForBiome(terrainType, planetModel.getType());
+            text.add("Active Octaves: " + configuredOctaves.size());
+
+            for (OctaveRegistry.ConfiguredOctave configuredOctave : configuredOctaves) {
+                text.add("  • " + configuredOctave.octave.getOctaveName());
+            }
+        } else {
+            text.add("No planet model loaded");
         }
     }
 
@@ -410,26 +446,4 @@ public class UniversalChunkGenerator extends ChunkGenerator {
         return new VerticalBlockSample(world.getBottomY(), column);
     }
 
-    @Override
-    public void getDebugHudText(List<String> text, NoiseConfig noiseConfig, BlockPos pos) {
-        text.add("=== CONFIGURED OCTAVE TERRAIN ===");
-        if (planetModel != null) {
-            text.add("Planet: " + planetModel.getConfig().getPlanetName());
-            text.add("Type: " + planetModel.getType().getDisplayName());
-
-            IBiomeType biome = getBiomeTypeAt(pos.getX(), pos.getZ());
-            text.add("Biome: " + biome.getName());
-
-            List<OctaveRegistry.ConfiguredOctave> configuredOctaves =
-                    OctaveRegistry.getConfiguredOctavesForBiome(biome, planetModel.getType());
-            text.add("Configured Octaves: " + configuredOctaves.size());
-
-            for (OctaveRegistry.ConfiguredOctave configuredOctave : configuredOctaves) {
-                text.add("  " + configuredOctave.octave.getOctaveName() +
-                        " " + configuredOctave.config.getAllParameters().toString());
-            }
-        } else {
-            text.add("No planet model loaded");
-        }
-    }
 }

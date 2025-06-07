@@ -1,5 +1,3 @@
-// DesertBiomes.java - CUSTOM BIOME CREATION for the 4 desert biomes
-
 package net.terradyne.planet.biome;
 
 import net.minecraft.entity.EntityType;
@@ -10,30 +8,33 @@ import net.minecraft.world.biome.BiomeEffects;
 import net.minecraft.world.biome.GenerationSettings;
 import net.minecraft.world.biome.SpawnSettings;
 
+/**
+ * Updated DesertBiomes - Creates the 4 core desert biomes
+ */
 public class DesertBiomes {
 
     /**
-     * DUNE SEA - Keep this exactly as it was (user said it was perfect)
+     * Dune Sea - Rolling sand dunes, classic desert
      */
     public static Biome createDuneSeaBiome() {
         return new Biome.Builder()
-                .temperature(0.8f)               // Hot but not extreme
-                .downfall(0.1f)                  // Very low rainfall
-                .precipitation(false)            // No rain
+                .temperature(0.8f)
+                .downfall(0.1f)
+                .precipitation(false)
                 .effects(new BiomeEffects.Builder()
-                        .skyColor(0xE6D07A)          // Sandy sky
-                        .fogColor(0xC4A875)          // Sandy fog
-                        .waterColor(0x3F76E4)        // Standard water
-                        .waterFogColor(0x050533)     // Dark water fog
-                        .grassColor(0xBFA755)        // Sandy grass
-                        .foliageColor(0x9E8A47)      // Sandy foliage
+                        .skyColor(0xE6D07A)        // Warm yellow sky
+                        .fogColor(0xC4A875)        // Sandy fog
+                        .waterColor(0x3F76E4)
+                        .waterFogColor(0x050533)
+                        .grassColor(0xBFA755)      // Dry grass
+                        .foliageColor(0x9E8A47)    // Desert foliage
                         .loopSound(SoundEvents.AMBIENT_CAVE)
                         .build())
                 .spawnSettings(new SpawnSettings.Builder()
                         .spawn(SpawnGroup.MONSTER, new SpawnSettings.SpawnEntry(
-                                EntityType.HUSK, 5, 1, 2))      // Desert zombies
+                                EntityType.HUSK, 5, 1, 2))
                         .spawn(SpawnGroup.CREATURE, new SpawnSettings.SpawnEntry(
-                                EntityType.RABBIT, 1, 1, 1))    // Desert animals
+                                EntityType.RABBIT, 1, 1, 1))
                         .build())
                 .generationSettings(new GenerationSettings.Builder()
                         .build())
@@ -41,27 +42,27 @@ public class DesertBiomes {
     }
 
     /**
-     * GRANITE MESAS - Rocky plateau biome with earth tones
+     * Granite Mesas - Elevated rocky plateaus
      */
     public static Biome createGraniteMesasBiome() {
         return new Biome.Builder()
-                .temperature(0.9f)               // Hot and dry
-                .downfall(0.05f)                 // Almost no rainfall
-                .precipitation(false)            // No rain
+                .temperature(0.6f)       // Cooler due to elevation
+                .downfall(0.2f)          // Slightly more moisture at altitude
+                .precipitation(false)
                 .effects(new BiomeEffects.Builder()
-                        .skyColor(0xD4A574)          // Dusty orange sky
-                        .fogColor(0xB8860B)          // Golden brown fog
-                        .waterColor(0x3F76E4)        // Standard water
+                        .skyColor(0xC0D8FF)    // Clearer sky at altitude
+                        .fogColor(0xB8860B)    // Golden fog
+                        .waterColor(0x3F76E4)
                         .waterFogColor(0x050533)
-                        .grassColor(0xA0522D)        // Brownish grass
-                        .foliageColor(0x8B4513)      // Brown foliage
+                        .grassColor(0xA0522D)  // Rocky brown
+                        .foliageColor(0x8B4513) // Sienna
                         .loopSound(SoundEvents.AMBIENT_CAVE)
                         .build())
                 .spawnSettings(new SpawnSettings.Builder()
                         .spawn(SpawnGroup.CREATURE, new SpawnSettings.SpawnEntry(
-                                EntityType.GOAT, 2, 1, 3))      // Mountain goats on cliffs
+                                EntityType.GOAT, 2, 1, 3)) // Mountain goats
                         .spawn(SpawnGroup.MONSTER, new SpawnSettings.SpawnEntry(
-                                EntityType.HUSK, 3, 1, 2))      // Fewer monsters on cliffs
+                                EntityType.HUSK, 2, 1, 2)) // Fewer hostiles
                         .build())
                 .generationSettings(new GenerationSettings.Builder()
                         .build())
@@ -69,29 +70,29 @@ public class DesertBiomes {
     }
 
     /**
-     * LIMESTONE CANYONS - Deep valley biome with layered colors
+     * Limestone Canyons - Deep carved canyons with limestone walls
      */
     public static Biome createLimestoneCanyonsBiome() {
         return new Biome.Builder()
-                .temperature(0.7f)               // Cooler in canyon depths
-                .downfall(0.15f)                 // Slightly more moisture
-                .precipitation(false)            // Still no rain
+                .temperature(0.7f)       // Moderate temperature in canyons
+                .downfall(0.3f)          // Higher humidity in protected canyons
+                .precipitation(false)
                 .effects(new BiomeEffects.Builder()
-                        .skyColor(0xCFBF9A)          // Muted canyon sky
-                        .fogColor(0xD2B48C)          // Tan fog
-                        .waterColor(0x4A5D23)        // Muddy water
-                        .waterFogColor(0x2F3A0F)     // Dark muddy fog
-                        .grassColor(0x9ACD32)        // Yellowish green
-                        .foliageColor(0x8FBC8F)      // Pale green
+                        .skyColor(0xDEB887)    // Burlywood sky
+                        .fogColor(0xD2B48C)    // Tan fog
+                        .waterColor(0x4682B4)  // Steel blue water
+                        .waterFogColor(0x050533)
+                        .grassColor(0xDAA520)  // Goldenrod
+                        .foliageColor(0xB8860B) // Dark goldenrod
                         .loopSound(SoundEvents.AMBIENT_CAVE)
                         .build())
                 .spawnSettings(new SpawnSettings.Builder()
                         .spawn(SpawnGroup.CREATURE, new SpawnSettings.SpawnEntry(
-                                EntityType.BAT, 3, 2, 5))       // Bats in caves
+                                EntityType.BAT, 3, 2, 4))    // Bats in caves
+                        .spawn(SpawnGroup.CREATURE, new SpawnSettings.SpawnEntry(
+                                EntityType.LLAMA, 1, 2, 4))  // Canyon dwellers
                         .spawn(SpawnGroup.MONSTER, new SpawnSettings.SpawnEntry(
-                                EntityType.SPIDER, 4, 1, 3))    // Cave spiders
-                        .spawn(SpawnGroup.MONSTER, new SpawnSettings.SpawnEntry(
-                                EntityType.HUSK, 2, 1, 2))      // Some desert zombies
+                                EntityType.HUSK, 3, 1, 2))
                         .build())
                 .generationSettings(new GenerationSettings.Builder()
                         .build())
@@ -99,26 +100,26 @@ public class DesertBiomes {
     }
 
     /**
-     * SALT FLATS - Stark white crystalline biome
+     * Salt Flats - Flat crystalline salt deposits
      */
     public static Biome createSaltFlatsBiome() {
         return new Biome.Builder()
-                .temperature(1.1f)               // Very hot, no shade
-                .downfall(0.0f)                  // Absolutely no rainfall
-                .precipitation(false)            // No precipitation
+                .temperature(0.9f)       // Hot due to salt reflection
+                .downfall(0.0f)          // Extremely dry
+                .precipitation(false)
                 .effects(new BiomeEffects.Builder()
-                        .skyColor(0xF0F8FF)          // Bright white sky
-                        .fogColor(0xF5F5DC)          // Beige white fog
-                        .waterColor(0xE0FFFF)        // Light cyan water (salt pools)
-                        .waterFogColor(0xB0E0E6)     // Powder blue water fog
-                        .grassColor(0xF5F5F5)        // White grass
-                        .foliageColor(0xE6E6FA)      // Lavender white foliage
+                        .skyColor(0xF5F5DC)    // Beige sky (salt haze)
+                        .fogColor(0xFFFFE0)    // Light yellow fog
+                        .waterColor(0x00CED1)  // Dark turquoise (salt pools)
+                        .waterFogColor(0x050533)
+                        .grassColor(0xF5DEB3)  // Wheat color
+                        .foliageColor(0xDEB887) // Burlywood
                         .loopSound(SoundEvents.AMBIENT_CAVE)
                         .build())
                 .spawnSettings(new SpawnSettings.Builder()
-                        // Very sparse spawning in harsh salt environment
+                        // Very sparse spawning due to harsh conditions
                         .spawn(SpawnGroup.MONSTER, new SpawnSettings.SpawnEntry(
-                                EntityType.HUSK, 1, 1, 1))      // Rare desert zombies
+                                EntityType.HUSK, 1, 1, 1))   // Rare husks
                         .build())
                 .generationSettings(new GenerationSettings.Builder()
                         .build())

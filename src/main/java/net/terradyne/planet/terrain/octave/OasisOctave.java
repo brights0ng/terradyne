@@ -3,7 +3,7 @@ package net.terradyne.planet.terrain.octave;
 import net.terradyne.planet.PlanetType;
 import net.terradyne.planet.terrain.MasterNoiseProvider;
 import net.terradyne.planet.terrain.OctaveConfiguration;
-import net.terradyne.planet.terrain.UnifiedOctaveContext;
+import net.terradyne.planet.terrain.OctaveContext;
 
 import java.util.Set;
 
@@ -13,7 +13,7 @@ import java.util.Set;
 public class OasisOctave implements IUnifiedOctave {
 
     @Override
-    public double generateHeightContribution(int x, int z, UnifiedOctaveContext context,
+    public double generateHeightContribution(int x, int z, OctaveContext context,
                                              OctaveConfiguration config) {
         MasterNoiseProvider noise = context.getNoiseProvider();
 

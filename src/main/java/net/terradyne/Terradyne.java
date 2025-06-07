@@ -1,5 +1,3 @@
-// Terradyne.java - UPDATED to register custom biomes early
-
 package net.terradyne;
 
 import net.fabricmc.api.ModInitializer;
@@ -17,60 +15,59 @@ public class Terradyne implements ModInitializer {
 
 	@Override
 	public void onInitialize() {
-		LOGGER.info("🚀 Starting Terradyne initialization...");
+		LOGGER.info("🚀 Initializing Terradyne...");
 
-		// STEP 1: Register custom biomes FIRST (before anything needs them)
-//		LOGGER.info("📋 Registering custom biomes...");
-//		ModBiomes.init();
+		// Initialize core systems
+		initializeTerrainSystem();
+		registerCommands();
+		initializeRegistryKeys();
 
-		// STEP 2: Initialize the unified octave system
-		initializeUnifiedTerrainSystem();
-
-		// STEP 3: Register commands
-		CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) -> {
-			CommandRegistry.init(dispatcher);
-		});
-
-		// STEP 4: Initialize custom dimension types
-		ModDimensionTypes.init();
-
-		LOGGER.info("✅ Terradyne fully initialized!");
-		LOGGER.info("   - Custom biomes registered and ready");
-		LOGGER.info("   - Unified octave terrain system active");
-		LOGGER.info("   - {} planet types available", getPlanetTypeCount());
-		LOGGER.info("   - Master noise approach eliminates terrain conflicts");
-		LOGGER.info("   - Biomes control octave selection for natural terrain");
+		LOGGER.info("✅ Terradyne initialized successfully!");
+		logSystemStatus();
 	}
 
-	/**
-	 * Initialize the unified terrain generation system
-	 * This is the core of the new architecture
-	 */
-	private void initializeUnifiedTerrainSystem() {
-		LOGGER.info("=== INITIALIZING UNIFIED TERRAIN SYSTEM ===");
-
+	private void initializeTerrainSystem() {
 		try {
-			// Initialize octave registry with all available octaves
 			OctaveRegistry.initialize();
-
+			LOGGER.info("✓ Unified octave terrain system active");
 		} catch (Exception e) {
-			LOGGER.error("❌ Failed to initialize unified terrain system!", e);
+			LOGGER.error("❌ Failed to initialize terrain system!", e);
 			throw new RuntimeException("Critical terrain system failure", e);
 		}
 	}
 
-	/**
-	 * Get count of implemented planet types for logging
-	 */
+	private void registerCommands() {
+		CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) -> {
+			CommandRegistry.init(dispatcher);
+		});
+		LOGGER.info("✓ Commands registered");
+	}
+
+	private void initializeRegistryKeys() {
+		ModBiomes.init();
+		ModDimensionTypes.init();
+		LOGGER.info("✓ Registry keys initialized");
+	}
+
+	private void logSystemStatus() {
+		LOGGER.info("=== SYSTEM STATUS ===");
+		LOGGER.info("• Planet types: {} implemented", getPlanetTypeCount());
+		LOGGER.info("• Terrain: Master noise + modular octaves");
+		LOGGER.info("• Biomes: Data-driven (JSON generation)");
+		LOGGER.info("• Custom terrain per biome type");
+		LOGGER.info("");
+		LOGGER.info("💡 Run 'gradlew runDatagen' to generate custom biomes");
+		LOGGER.info("🎮 Use '/terradyne create <name> <type>' to create planets");
+	}
+
 	private int getPlanetTypeCount() {
 		try {
-			// Use reflection to access PlanetType.getImplementedTypes()
 			Class<?> planetTypeClass = Class.forName("net.terradyne.planet.PlanetType");
 			java.lang.reflect.Method method = planetTypeClass.getMethod("getImplementedTypes");
 			Object[] types = (Object[]) method.invoke(null);
 			return types.length;
 		} catch (Exception e) {
-			return 3; // Fallback: Desert, Oceanic, Rocky
+			return 3; // Fallback
 		}
 	}
 }

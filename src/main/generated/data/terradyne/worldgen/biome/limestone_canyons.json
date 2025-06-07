@@ -1,0 +1,46 @@
+{
+  "carvers": {},
+  "downfall": 0.3,
+  "effects": {
+    "fog_color": 13808780,
+    "foliage_color": 12092939,
+    "grass_color": 14329120,
+    "sky_color": 14596231,
+    "water_color": 4620980,
+    "water_fog_color": 329011
+  },
+  "features": [],
+  "has_precipitation": false,
+  "spawn_costs": {},
+  "spawners": {
+    "ambient": [],
+    "axolotls": [],
+    "creature": [
+      {
+        "type": "minecraft:bat",
+        "maxCount": 4,
+        "minCount": 2,
+        "weight": 3
+      },
+      {
+        "type": "minecraft:llama",
+        "maxCount": 4,
+        "minCount": 2,
+        "weight": 1
+      }
+    ],
+    "misc": [],
+    "monster": [
+      {
+        "type": "minecraft:husk",
+        "maxCount": 2,
+        "minCount": 1,
+        "weight": 3
+      }
+    ],
+    "underground_water_creature": [],
+    "water_ambient": [],
+    "water_creature": []
+  },
+  "temperature": 0.7
+}
