@@ -9,32 +9,41 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Updated registry for configuration-based octave system
+ * FINAL OctaveRegistry - Now includes RollingTerrainOctave for mesa base terrain
  */
 public class OctaveRegistry {
     private static final Map<Class<? extends IUnifiedOctave>, IUnifiedOctave> octaveInstances = new ConcurrentHashMap<>();
     private static boolean initialized = false;
 
     /**
-     * Initialize the octave registry with all available octaves
+     * Initialize the octave registry with all octaves for the 4-biome desert system
      */
     public static synchronized void initialize() {
         if (initialized) {
             return;
         }
 
-        Terradyne.LOGGER.info("=== Initializing Configuration-Based Octave Registry ===");
+        Terradyne.LOGGER.info("=== Initializing 4-Biome Desert Terrain System ===");
 
-        // Register all octave types
+        // === FOUNDATIONAL OCTAVES ===
         registerOctave(new FoundationOctave());
-        registerOctave(new DuneOctave());
-        registerOctave(new DetailOctave());
-        registerOctave(new CanyonOctave());
-        registerOctave(new MesaOctave());
-        registerOctave(new VolcanicFlowOctave());
+
+        // === ADDITIVE TERRAIN OCTAVES ===
+        registerOctave(new DuneOctave());                // Dune Sea
+        registerOctave(new MesaOctave());                // Granite Mesas - dramatic formations
+        registerOctave(new RollingTerrainOctave());      // RENAMED from Scrubland - gentle base terrain
+        registerOctave(new VolcanicFlowOctave());        // For future use
+
+        // === SUBTRACTIVE/CARVING OCTAVES ===
+        registerOctave(new CanyonOctave());              // Limestone Canyons + Mesa erosion
+        registerOctave(new WindErosionOctave());         // For future extreme environments
+
+        // === DETAIL OCTAVES ===
+        registerOctave(new DetailOctave());              // Surface texture - includes salt patterns
+        registerOctave(new OasisOctave());               // For future rare oasis features
 
         initialized = true;
-        Terradyne.LOGGER.info("✅ Registered {} octave types", octaveInstances.size());
+        Terradyne.LOGGER.info("✅ Registered {} octave types for 4-biome desert system", octaveInstances.size());
 
         logRegisteredOctaves();
     }
@@ -117,15 +126,23 @@ public class OctaveRegistry {
     }
 
     /**
-     * Log registered octaves for debugging
+     * Log registered octaves for debugging - now shows 4-biome focus
      */
     private static void logRegisteredOctaves() {
-        Terradyne.LOGGER.info("Registered octaves:");
+        Terradyne.LOGGER.info("=== 4-BIOME DESERT TERRAIN SYSTEM ===");
         for (IUnifiedOctave octave : octaveInstances.values()) {
-            Terradyne.LOGGER.info("  {} - Supports: {}",
+            Terradyne.LOGGER.info("  {} - Supports: {} (Freq: {})",
                     octave.getOctaveName(),
-                    octave.getSupportedPlanetTypes());
+                    octave.getSupportedPlanetTypes(),
+                    String.format("%.4f", octave.getPrimaryFrequency()));
         }
+        Terradyne.LOGGER.info("=== BIOME SPECIALIZATIONS ===");
+        Terradyne.LOGGER.info("  🏔️  GRANITE_MESAS: Rolling base + Dramatic mesas + Canyon systems");
+        Terradyne.LOGGER.info("  🏜️  LIMESTONE_CANYONS: Deep meandering canyon networks");
+        Terradyne.LOGGER.info("  🌊  DUNE_SEA: Smooth flowing dune formations");
+        Terradyne.LOGGER.info("  🧂  SALT_FLATS: Ultra-flat with subtle drainage + salt patterns");
+        Terradyne.LOGGER.info("=== KEY ENHANCEMENT ===");
+        Terradyne.LOGGER.info("  🌾  RollingTerrainOctave: Creates realistic gentle base for dramatic mesas");
     }
 
     /**
