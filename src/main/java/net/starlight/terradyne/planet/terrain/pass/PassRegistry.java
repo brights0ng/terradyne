@@ -27,6 +27,11 @@ public class PassRegistry {
         registerPass(new MesaOverridePass());
         registerPass(new DuneOverridePass());        // NEW
         registerPass(new GraniteCapPass());
+        registerPass(new LimestoneLayeringPass());
+
+        // === OVERRIDE PASSES (Priority 10-19) ===
+        registerPass(new FlatSurfacePass());
+
 
         // === CARVING PASSES (Priority 20-29) ===
         registerPass(new CanyonCarvingPass());

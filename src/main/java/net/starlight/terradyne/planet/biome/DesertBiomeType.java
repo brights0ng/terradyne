@@ -4,7 +4,7 @@ import net.minecraft.block.Blocks;
 import net.starlight.terradyne.planet.PlanetType;
 import net.starlight.terradyne.planet.terrain.OctaveConfiguration;
 import net.starlight.terradyne.planet.terrain.pass.*;
-import net.starlight.terradyne.planet.terrain.octave.*;
+
 import java.util.List;
 
 /**
@@ -111,52 +111,41 @@ public enum DesertBiomeType implements IBiomeType {
         @Override
         public List<PassConfiguration> getGenerationPasses() {
             return List.of(
-                    // Pass 1: Sandy foundation
-                    new PassConfiguration(TerrainFoundationPass.class, 0)
+                    // Pass 1: Create gentle rolling sand terrain
+                    new PassConfiguration(TerrainFoundationPass.class, 5)
                             .withParameter("blockType", Blocks.SAND.getDefaultState())
-                            .withParameter("minHeight", 60)
-                            .withParameter("foundation.amplitude", 12.0)
-                            .withParameter("foundation.frequency", 0.0008)
-                            .withParameter("rolling.hillHeight", 10.0)  // Gentler rolling under limestone
-                            .withParameter("rolling.hillFrequency", 0.006)
-                            .withParameter("rolling.rockOutcropIntensity", 0.2)
-                            .withParameter("rolling.washDepth", 2.0)
-                            .withParameter("rolling.undulationStrength", 1.0),
+                            .withParameter("baseSeaLevel", 75)
+                            .withParameter("foundation.amplitude", 3.0)
+                            .withParameter("foundation.frequency", 0.0003)
+                            .withParameter("rolling.hillHeight", 4.0)
+                            .withParameter("rolling.hillFrequency", 0.008)
+                            .withParameter("rolling.rockOutcropIntensity", 0.1)
+                            .withParameter("rolling.washDepth", 1.0)
+                            .withParameter("rolling.undulationStrength", 0.6),
 
-                    // Pass 2: Limestone layer
-                    new PassConfiguration(MesaOverridePass.class, 10)
+                    // Pass 2: Underground limestone
+                    new PassConfiguration(LimestoneLayeringPass.class, 15)
                             .withParameter("blockType", Blocks.STONE.getDefaultState())
-                            .withParameter("threshold", 0.1) // Lower threshold - more limestone coverage
-                            .withParameter("baseHeight", 60)
-                            .withParameter("mesa.mesaHeight", 40.0)
-                            .withParameter("mesa.plateauFrequency", 0.004)
-                            .withParameter("mesa.steepness", 2.0), // Much gentler than granite mesas
+                            .withParameter("floorLevel", 25)
+                            .withParameter("blocksUnderSurface", 3),
 
-                    // Pass 3: Primary canyon carving
+                    // Pass 3: Canyon carving
                     new PassConfiguration(CanyonCarvingPass.class, 20)
-                            .withParameter("maxDepth", 50.0)
-                            .withParameter("threshold", 0.1)
-                            .withParameter("canyon.channelFrequency", 0.003)
-                            .withParameter("canyon.meandering", 2.0)
-                            .withParameter("canyon.wallSteepness", 5.0)
-                            .withParameter("canyon.tributaryDensity", 1.2),
-
-                    // Pass 4: Secondary canyon system (smaller scale)
-                    new PassConfiguration(CanyonCarvingPass.class, 22)
-                            .withParameter("maxDepth", 25.0)
-                            .withParameter("threshold", 0.2)
-                            .withParameter("canyon.channelFrequency", 0.008)
-                            .withParameter("canyon.meandering", 1.0)
-                            .withParameter("canyon.wallSteepness", 3.0)
-                            .withParameter("canyon.tributaryDensity", 0.8),
-
-                    // Pass 5: Surface details
-                    new PassConfiguration(SurfaceDetailPass.class, 30)
-                            .withParameter("detail.intensity", 0.15)
-                            .withParameter("detail.frequency", 0.015)
+                            .withParameter("canyonFloor", 25)
+                            .withParameter("threshold", 0.05)
+                            .withParameter("canyonWidth", 0.8)
+                            .withParameter("canyonDensity", 0.6)
+                            .withParameter("branchingFactor", 0.4)
+                            .withParameter("sharpness", 2.0)
+                            .withParameter("noiseScale", 0.3)
+                            .withParameter("floorBlock", Blocks.SANDSTONE.getDefaultState())
             );
         }
     },
+
+    // In DesertBiomeType.java, update the SALT_FLATS configuration:
+
+    // In DesertBiomeType.java, update the SALT_FLATS configuration:
 
     SALT_FLATS("salt_flats") {
         @Override
@@ -174,23 +163,12 @@ public enum DesertBiomeType implements IBiomeType {
                             .withParameter("rolling.washDepth", 0.3)     // Very shallow drainage
                             .withParameter("rolling.undulationStrength", 0.2),
 
-                    // Pass 2: Very minimal drainage patterns
-                    new PassConfiguration(CanyonCarvingPass.class, 20)
-                            .withParameter("maxDepth", 2.0)        // Extremely shallow
-                            .withParameter("threshold", 0.4)       // Higher threshold - minimal carving
-                            .withParameter("canyon.channelFrequency", 0.008)
-                            .withParameter("canyon.meandering", 0.2)      // Straighter channels
-                            .withParameter("canyon.wallSteepness", 1.0)   // Very gentle slopes
-                            .withParameter("canyon.tributaryDensity", 0.1), // Minimal tributaries
-
                     // Pass 3: GEOMETRIC salt formations
-                    new PassConfiguration(GeometricSaltPass.class, 25)  // NEW PASS
-                            .withParameter("saltBlock", Blocks.SMOOTH_QUARTZ.getDefaultState()) // FIXED: Smooth quartz
-                            .withParameter("coverage", 0.9)        // 90% salt coverage
-                            .withParameter("polygonSize", 0.015)   // Size of salt polygons
-                            .withParameter("terraceHeight", 3)     // Height of salt terraces
-                            .withParameter("crystallineDetail", true)
-                            .withParameter("hexagonalPatterns", true),
+                    new PassConfiguration(GeometricSaltPass.class, 25)
+                            .withParameter("baseLayer", Blocks.DIORITE.getDefaultState())     // 1st layer
+                            .withParameter("saltBlock", Blocks.CALCITE.getDefaultState())     // 2nd layer
+                            .withParameter("crackThreshold", 0.7)     // Higher = fewer cracks
+                            .withParameter("crackScale", 0.03),       // Size of crack patterns
 
                     // Pass 4: Minimal surface details
                     new PassConfiguration(SurfaceDetailPass.class, 30)
@@ -200,7 +178,7 @@ public enum DesertBiomeType implements IBiomeType {
                             .withParameter("detail.saltPatterns", true)
             );
         }
-    };;
+    };
 
     private final String name;
 

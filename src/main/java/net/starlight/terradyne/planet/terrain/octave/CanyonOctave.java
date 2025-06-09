@@ -104,6 +104,26 @@ public class CanyonOctave implements IUnifiedOctave {
     }
 
     /**
+     * Create better connected canyon networks
+     */
+    private double createConnectedCanyonNetwork(MasterNoiseProvider noise, int x, int z,
+                                                double frequency, double connectionStrength) {
+        // Primary canyon network
+        double mainCanyon = noise.sampleRidge(x * frequency, 0, z * frequency * 0.7);
+
+        // Secondary network at different angle
+        double secondaryCanyon = noise.sampleRidge(x * frequency * 0.8, 0, z * frequency * 1.2);
+
+        // Connection channels between networks
+        double connections = noise.sampleRidge(x * frequency * 1.5, 0, z * frequency * 0.9);
+
+        // Take the minimum (deepest) value for better connectivity
+        double combined = Math.min(mainCanyon, Math.min(secondaryCanyon, connections * connectionStrength));
+
+        return combined;
+    }
+
+    /**
      * Convert ridge distance to realistic canyon wall profile
      */
     private double createCanyonProfile(double ridgeDistance, double steepness) {
