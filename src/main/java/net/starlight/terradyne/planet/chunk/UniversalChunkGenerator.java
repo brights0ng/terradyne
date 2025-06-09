@@ -31,13 +31,14 @@ import net.starlight.terradyne.planet.terrain.MasterNoiseProvider;
 import net.starlight.terradyne.planet.terrain.OctaveContext;
 import net.starlight.terradyne.planet.terrain.OctaveRegistry;
 import net.starlight.terradyne.planet.terrain.octave.IUnifiedOctave;
+import net.starlight.terradyne.planet.terrain.pass.PassRegistry;
 
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 
 /**
- * COMPLETE UPDATED Universal Chunk Generator with all mesa fixes
+ * UPDATED Universal Chunk Generator with Pass-Based Generation System
  */
 public class UniversalChunkGenerator extends ChunkGenerator {
     public static final Codec<UniversalChunkGenerator> CODEC = RecordCodecBuilder.create(instance ->
@@ -57,18 +58,15 @@ public class UniversalChunkGenerator extends ChunkGenerator {
             // Create THE master noise provider that all octaves will share
             this.masterNoiseProvider = new MasterNoiseProvider(planetModel.getConfig().getSeed());
 
-            // Ensure octave registry is initialized
-            OctaveRegistry.initialize();
+            // Initialize BOTH systems
+            OctaveRegistry.initialize();  // For octaves used by passes
+            PassRegistry.initialize();    // NEW: For pass system
 
             Terradyne.LOGGER.info("=== UNIVERSAL CHUNK GENERATOR INITIALIZED ===");
             Terradyne.LOGGER.info("Planet: {}", planetModel.getConfig().getPlanetName());
             Terradyne.LOGGER.info("Type: {}", planetModel.getType().getDisplayName());
             Terradyne.LOGGER.info("Seed: {}", planetModel.getConfig().getSeed());
-
-            // Log available octaves for this planet type
-            List<IUnifiedOctave> availableOctaves = OctaveRegistry.getOctavesForPlanetType(planetModel.getType());
-            Terradyne.LOGGER.info("Available octaves: {}",
-                    availableOctaves.stream().map(IUnifiedOctave::getOctaveName).toList());
+            Terradyne.LOGGER.info("Generation System: PASS-BASED"); // NEW
 
         } else {
             // Codec constructor
@@ -86,41 +84,78 @@ public class UniversalChunkGenerator extends ChunkGenerator {
                                                   NoiseConfig noiseConfig, StructureAccessor structureAccessor,
                                                   Chunk chunk) {
         return CompletableFuture.supplyAsync(() -> {
-            generateConfiguredTerrain(chunk, noiseConfig);
+            generatePassBasedTerrain(chunk, noiseConfig);  // CHANGED: Use pass system
             return chunk;
         }, executor);
     }
 
     /**
-     * NEW CONFIGURATION-BASED TERRAIN GENERATION
+     * NEW PASS-BASED TERRAIN GENERATION
+     * Replaces the old octave-based height calculation system
      */
-    private void generateConfiguredTerrain(Chunk chunk, NoiseConfig noiseConfig) {
+    private void generatePassBasedTerrain(Chunk chunk, NoiseConfig noiseConfig) {
         if (planetModel == null || masterNoiseProvider == null) {
             generateFallbackTerrain(chunk);
             return;
         }
 
-        ChunkPos chunkPos = chunk.getPos();
+        try {
+            // Get the biome for this chunk (sample center point)
+            ChunkPos chunkPos = chunk.getPos();
+            int centerX = chunkPos.getStartX() + 8;
+            int centerZ = chunkPos.getStartZ() + 8;
+            IBiomeType biomeType = getBiomeTypeAt(centerX, centerZ);
 
-        for (int x = 0; x < 16; x++) {
-            for (int z = 0; z < 16; z++) {
-                int worldX = chunkPos.getStartX() + x;
-                int worldZ = chunkPos.getStartZ() + z;
+            // Create unified context with master noise provider
+            OctaveContext context = new OctaveContext(
+                    planetModel,
+                    biomeType,
+                    masterNoiseProvider,
+                    getBaseHeight()
+            );
 
-                // Get biome type at this location
-                IBiomeType biomeType = getBiomeTypeAt(worldX, worldZ);
+            // Get configured passes for this biome
+            List<PassRegistry.ConfiguredPass> passes = PassRegistry.getConfiguredPassesForBiome(biomeType);
 
-                // Generate height using configured octaves
-                ConfiguredTerrainResult result = generateHeightUsingConfiguredOctaves(worldX, worldZ, biomeType);
-
-                // Fill the terrain column
-                fillTerrainColumn(chunk, x, z, result);
+            if (passes.isEmpty()) {
+                Terradyne.LOGGER.warn("No passes configured for biome {} - using fallback", biomeType.getName());
+                generateFallbackTerrain(chunk);
+                return;
             }
+
+            Terradyne.LOGGER.debug("Generating chunk {} with {} passes for biome {}",
+                    chunkPos, passes.size(), biomeType.getName());
+
+            // Apply each pass in priority order
+            for (PassRegistry.ConfiguredPass configuredPass : passes) {
+                try {
+                    configuredPass.pass.applyPass(chunk, biomeType, context, configuredPass.config);
+
+                    Terradyne.LOGGER.debug("Applied pass: {} (priority {})",
+                            configuredPass.pass.getPassName(),
+                            configuredPass.config.getPriority());
+
+                } catch (Exception e) {
+                    Terradyne.LOGGER.error("Error applying pass {} to chunk {}: {}",
+                            configuredPass.pass.getPassName(),
+                            chunkPos,
+                            e.getMessage());
+                    e.printStackTrace();
+                    // Continue with other passes even if one fails
+                }
+            }
+
+        } catch (Exception e) {
+            Terradyne.LOGGER.error("Critical error in pass-based terrain generation for chunk {}: {}",
+                    chunk.getPos(), e.getMessage());
+            e.printStackTrace();
+            generateFallbackTerrain(chunk);
         }
     }
 
     /**
-     * Generate height using biome-configured octaves with their parameters - UPDATED
+     * LEGACY METHOD - kept for compatibility with other methods that need height
+     * This is used by getHeight() and getColumnSample() methods
      */
     private ConfiguredTerrainResult generateHeightUsingConfiguredOctaves(int x, int z, IBiomeType biomeType) {
         // Get configured octaves for this biome
@@ -128,8 +163,6 @@ public class UniversalChunkGenerator extends ChunkGenerator {
                 OctaveRegistry.getConfiguredOctavesForBiome(biomeType, planetModel.getType());
 
         if (configuredOctaves.isEmpty()) {
-            Terradyne.LOGGER.warn("No configured octaves available for biome {} on planet type {}",
-                    biomeType.getName(), planetModel.getType());
             return createFallbackResult(biomeType);
         }
 
@@ -150,118 +183,41 @@ public class UniversalChunkGenerator extends ChunkGenerator {
                         x, z, context, configuredOctave.config);
                 totalHeight += contribution;
 
-                // Debug logging for first few chunks
-                if (Math.abs(x) < 32 && Math.abs(z) < 32 && Math.abs(contribution) > 0.1) {
-                    Terradyne.LOGGER.debug("Octave {} contributed {} at {},{} (total: {})",
-                            configuredOctave.octave.getOctaveName(),
-                            String.format("%.2f", contribution),
-                            x, z,
-                            String.format("%.2f", totalHeight));
-                }
-
             } catch (Exception e) {
                 Terradyne.LOGGER.error("Error in configured octave {}: {}",
                         configuredOctave.octave.getOctaveName(), e.getMessage());
-                e.printStackTrace();
             }
         }
 
         int finalHeight = Math.max(getMinHeight(), (int) totalHeight);
         int bedrockHeight = (int) context.getBaseFoundationHeight();
-        BlockState primaryBlock = Blocks.SAND.getDefaultState(); // Temporary - will be calculated in fillTerrainColumn
+        BlockState primaryBlock = Blocks.SAND.getDefaultState();
 
         return new ConfiguredTerrainResult(bedrockHeight, finalHeight, primaryBlock, biomeType, configuredOctaves);
     }
 
     /**
-     * Get base height for the planet type - UPDATED to 75 for desert
+     * Get base height for the planet type
      */
     private double getBaseHeight() {
         return switch (planetModel.getType()) {
-            case DESERT, HOTHOUSE -> 75.0;  // CHANGED: 55.0 -> 75.0 to match dune sea
-            case OCEANIC -> 45.0;  // Lower for ocean worlds
-            case ROCKY -> 60.0;    // Higher for rocky worlds
-            case VOLCANIC -> 70.0; // Higher for volcanic buildup
-            case ICY -> 50.0;      // Lower for ice worlds
-            default -> 75.0;       // CHANGED: 55.0 -> 75.0
+            case DESERT, HOTHOUSE -> 75.0;
+            case OCEANIC -> 45.0;
+            case ROCKY -> 60.0;
+            case VOLCANIC -> 70.0;
+            case ICY -> 50.0;
+            default -> 75.0;
         };
     }
 
     /**
-     * Get minimum world height - FIXED to prevent cutoff
+     * Get minimum world height
      */
     private int getMinHeight() {
         return switch (planetModel.getType()) {
-            case OCEANIC -> 20;  // Allow for deep oceans
-            case VOLCANIC -> 30; // Lava flow channels
-            default -> 30;       // CHANGED: 35 -> 30 to avoid cutoff at 41
-        };
-    }
-
-    /**
-     * Check if a location is within a mesa formation using the same logic as MesaOctave
-     */
-    private boolean isInMesaFormation(int x, int z) {
-        if (masterNoiseProvider == null) return false;
-
-        // Use the same mesa detection logic as MesaOctave
-        double plateauFrequency = 0.006; // Same as MesaOctave default
-        double steepness = 6.0; // Same as MesaOctave config
-
-        // Same mesa placement logic as in MesaOctave
-        double mesaPlacement = masterNoiseProvider.sampleAt(x * plateauFrequency * 0.6, 0, z * plateauFrequency * 0.4);
-        double secondaryMesas = masterNoiseProvider.sampleAt(x * plateauFrequency * 1.2, 0, z * plateauFrequency * 0.8) * 0.7;
-        double combinedMesaPattern = mesaPlacement + secondaryMesas * 0.6;
-
-        // Same plateau mask calculation
-        double plateauMask = Math.pow(Math.max(0.0, combinedMesaPattern + 0.6), steepness);
-        plateauMask = Math.min(1.0, plateauMask);
-
-        // Return true if we're in a significant mesa area
-        return plateauMask > 0.2;
-    }
-
-    /**
-     * Select appropriate block for biome - NOW USES MESA PRESENCE, NOT HEIGHT
-     */
-    private BlockState getPrimaryBlockForBiome(IBiomeType biomeType, int worldX, int worldZ, int worldY) {
-        if (planetModel.getType() == PlanetType.DESERT || planetModel.getType() == PlanetType.HOTHOUSE) {
-            DesertConfig config = ((DesertModel) planetModel).getConfig();
-
-            if (biomeType instanceof DesertBiomeType desertBiome) {
-                // GRANITE MESAS: Use mesa presence to determine block type
-                if (desertBiome == DesertBiomeType.GRANITE_MESAS) {
-                    // Check if we're actually IN a mesa formation
-                    boolean inMesa = isInMesaFormation(worldX, worldZ);
-
-                    if (inMesa) {
-                        return Blocks.STONE.getDefaultState(); // Stone for mesa areas
-                    } else {
-                        // Rolling hills areas = sand, regardless of height
-                        return config.getSurfaceTemperature() > 45 ?
-                                Blocks.RED_SAND.getDefaultState() : Blocks.SAND.getDefaultState();
-                    }
-                }
-
-                // Other biome types
-                return switch (desertBiome) {
-                    case LIMESTONE_CANYONS -> Blocks.CALCITE.getDefaultState();
-                    case SALT_FLATS -> Blocks.WHITE_CONCRETE_POWDER.getDefaultState();
-                    default -> config.getSurfaceTemperature() > 45 ?
-                            Blocks.RED_SAND.getDefaultState() : Blocks.SAND.getDefaultState();
-                };
-            }
-
-            return config.getSurfaceTemperature() > 45 ?
-                    Blocks.RED_SAND.getDefaultState() : Blocks.SAND.getDefaultState();
-        }
-
-        return switch (planetModel.getType()) {
-            case OCEANIC -> Blocks.STONE.getDefaultState();
-            case ROCKY -> Blocks.COBBLESTONE.getDefaultState();
-            case VOLCANIC -> Blocks.BASALT.getDefaultState();
-            case ICY -> Blocks.SNOW_BLOCK.getDefaultState();
-            default -> Blocks.STONE.getDefaultState();
+            case OCEANIC -> 20;
+            case VOLCANIC -> 30;
+            default -> 30;
         };
     }
 
@@ -277,7 +233,6 @@ public class UniversalChunkGenerator extends ChunkGenerator {
             // Fallback based on planet type
             return switch (planetModel.getType()) {
                 case DESERT, HOTHOUSE -> DesertBiomeType.DUNE_SEA;
-                // TODO: Add other planet type fallbacks when you create their biome types
                 default -> DesertBiomeType.DUNE_SEA;
             };
 
@@ -288,79 +243,20 @@ public class UniversalChunkGenerator extends ChunkGenerator {
     }
 
     /**
-     * Fill terrain column with blocks - UPDATED to use new block selection
-     */
-    private void fillTerrainColumn(Chunk chunk, int x, int z, ConfiguredTerrainResult result) {
-        int worldX = chunk.getPos().getStartX() + x;
-        int worldZ = chunk.getPos().getStartZ() + z;
-
-        for (int y = chunk.getBottomY(); y <= result.finalHeight + 5; y++) {
-            BlockPos pos = new BlockPos(x, y, z);
-            BlockState blockState;
-
-            // CREATE GRADUAL BEDROCK TRANSITION instead of hard cutoff
-            double bedrockTransitionZone = 4.0; // 4 block transition zone
-            double distanceAboveBedrock = y - result.bedrockHeight;
-
-            if (distanceAboveBedrock <= 0) {
-                // Pure bedrock
-                blockState = getBedrockBlock();
-            } else if (distanceAboveBedrock < bedrockTransitionZone) {
-                // Transition zone - mix bedrock and surface material based on noise
-                MasterNoiseProvider noise = masterNoiseProvider;
-                double transitionNoise = noise.sampleAt(x * 0.1, y * 0.05, z * 0.1);
-                double transitionFactor = distanceAboveBedrock / bedrockTransitionZone;
-
-                // Smooth the transition with noise
-                if (transitionNoise < (transitionFactor - 0.5)) {
-                    blockState = getBedrockBlock();
-                } else {
-                    // USE NEW BLOCK SELECTION METHOD
-                    blockState = getPrimaryBlockForBiome(result.biomeType, worldX, worldZ, y);
-                }
-            } else if (y <= result.finalHeight) {
-                // USE NEW BLOCK SELECTION METHOD
-                blockState = getPrimaryBlockForBiome(result.biomeType, worldX, worldZ, y);
-            } else {
-                blockState = Blocks.AIR.getDefaultState();
-            }
-
-            if (blockState != Blocks.AIR.getDefaultState()) {
-                chunk.setBlockState(pos, blockState, false);
-            }
-        }
-    }
-
-    /**
-     * Get bedrock block based on planet type
-     */
-    private BlockState getBedrockBlock() {
-        return switch (planetModel.getType()) {
-            case VOLCANIC -> Blocks.BASALT.getDefaultState();
-            case ICY -> Blocks.PACKED_ICE.getDefaultState();
-            case DESERT, HOTHOUSE -> Blocks.SANDSTONE.getDefaultState();
-            case OCEANIC -> Blocks.DEEPSLATE.getDefaultState();
-            case ROCKY -> Blocks.COBBLED_DEEPSLATE.getDefaultState();
-            default -> Blocks.DEEPSLATE.getDefaultState();
-        };
-    }
-
-    /**
      * Fallback terrain generation if system fails
      */
     private void generateFallbackTerrain(Chunk chunk) {
-        Terradyne.LOGGER.warn("Using fallback terrain generation");
+        Terradyne.LOGGER.warn("Using fallback terrain generation for chunk {}", chunk.getPos());
 
-        ChunkPos chunkPos = chunk.getPos();
         for (int x = 0; x < 16; x++) {
             for (int z = 0; z < 16; z++) {
-                for (int y = chunk.getBottomY(); y <= 65; y++) {
+                for (int y = chunk.getBottomY(); y <= 75; y++) {
                     BlockPos pos = new BlockPos(x, y, z);
 
                     if (y <= 50) {
                         chunk.setBlockState(pos, Blocks.STONE.getDefaultState(), false);
-                    } else if (y <= 60) {
-                        chunk.setBlockState(pos, Blocks.DIRT.getDefaultState(), false);
+                    } else if (y <= 70) {
+                        chunk.setBlockState(pos, Blocks.SAND.getDefaultState(), false);
                     }
                 }
             }
@@ -368,20 +264,20 @@ public class UniversalChunkGenerator extends ChunkGenerator {
     }
 
     /**
-     * Create fallback result if system fails - UPDATED
+     * Create fallback result if system fails
      */
     private ConfiguredTerrainResult createFallbackResult(IBiomeType biomeType) {
-        return new ConfiguredTerrainResult(50, 60, Blocks.STONE.getDefaultState(), biomeType, List.of());
+        return new ConfiguredTerrainResult(50, 75, Blocks.SAND.getDefaultState(), biomeType, List.of());
     }
 
     /**
-     * Data class for configured terrain results - UPDATED to include biome type
+     * Data class for configured terrain results (used by legacy methods)
      */
     private static class ConfiguredTerrainResult {
         final int bedrockHeight;
         final int finalHeight;
         final BlockState primaryBlock;
-        final IBiomeType biomeType;  // NEW: Include biome type for block selection
+        final IBiomeType biomeType;
         final List<OctaveRegistry.ConfiguredOctave> appliedOctaves;
 
         ConfiguredTerrainResult(int bedrockHeight, int finalHeight, BlockState primaryBlock,
@@ -394,7 +290,10 @@ public class UniversalChunkGenerator extends ChunkGenerator {
         }
     }
 
-    // Standard ChunkGenerator methods
+    // ============================================================================
+    // REQUIRED CHUNK GENERATOR METHODS (use legacy system for compatibility)
+    // ============================================================================
+
     @Override
     public void carve(ChunkRegion chunkRegion, long seed, NoiseConfig noiseConfig, BiomeAccess biomeAccess, StructureAccessor structureAccessor, Chunk chunk, GenerationStep.Carver carverStep) {}
 
@@ -421,7 +320,7 @@ public class UniversalChunkGenerator extends ChunkGenerator {
 
     @Override
     public int getHeight(int x, int z, Heightmap.Type heightmap, HeightLimitView world, NoiseConfig noiseConfig) {
-        if (planetModel == null) return 60;
+        if (planetModel == null) return 75;
 
         IBiomeType biomeType = getBiomeTypeAt(x, z);
         ConfiguredTerrainResult result = generateHeightUsingConfiguredOctaves(x, z, biomeType);
@@ -430,6 +329,20 @@ public class UniversalChunkGenerator extends ChunkGenerator {
 
     @Override
     public VerticalBlockSample getColumnSample(int x, int z, HeightLimitView world, NoiseConfig noiseConfig) {
+        if (planetModel == null) {
+            // Fallback column
+            BlockState[] column = new BlockState[world.getHeight()];
+            for (int y = 0; y < world.getHeight(); y++) {
+                int worldY = world.getBottomY() + y;
+                if (worldY <= 70) {
+                    column[y] = Blocks.SAND.getDefaultState();
+                } else {
+                    column[y] = Blocks.AIR.getDefaultState();
+                }
+            }
+            return new VerticalBlockSample(world.getBottomY(), column);
+        }
+
         IBiomeType biomeType = getBiomeTypeAt(x, z);
         ConfiguredTerrainResult result = generateHeightUsingConfiguredOctaves(x, z, biomeType);
 
@@ -439,7 +352,7 @@ public class UniversalChunkGenerator extends ChunkGenerator {
             if (worldY <= result.bedrockHeight) {
                 column[y] = getBedrockBlock();
             } else if (worldY <= result.finalHeight) {
-                column[y] = getPrimaryBlockForBiome(result.biomeType, x, z, worldY);
+                column[y] = result.primaryBlock;
             } else {
                 column[y] = Blocks.AIR.getDefaultState();
             }
@@ -448,9 +361,23 @@ public class UniversalChunkGenerator extends ChunkGenerator {
         return new VerticalBlockSample(world.getBottomY(), column);
     }
 
+    /**
+     * Get bedrock block based on planet type
+     */
+    private BlockState getBedrockBlock() {
+        return switch (planetModel.getType()) {
+            case VOLCANIC -> Blocks.BASALT.getDefaultState();
+            case ICY -> Blocks.PACKED_ICE.getDefaultState();
+            case DESERT, HOTHOUSE -> Blocks.SANDSTONE.getDefaultState();
+            case OCEANIC -> Blocks.DEEPSLATE.getDefaultState();
+            case ROCKY -> Blocks.COBBLED_DEEPSLATE.getDefaultState();
+            default -> Blocks.DEEPSLATE.getDefaultState();
+        };
+    }
+
     @Override
     public void getDebugHudText(List<String> text, NoiseConfig noiseConfig, BlockPos pos) {
-        text.add("=== CONFIGURED OCTAVE TERRAIN ===");
+        text.add("=== PASS-BASED TERRAIN GENERATION ===");  // UPDATED
         if (planetModel != null) {
             text.add("Planet: " + planetModel.getConfig().getPlanetName());
             text.add("Type: " + planetModel.getType().getDisplayName());
@@ -458,20 +385,14 @@ public class UniversalChunkGenerator extends ChunkGenerator {
             IBiomeType biome = getBiomeTypeAt(pos.getX(), pos.getZ());
             text.add("Biome: " + biome.getName());
 
-            List<OctaveRegistry.ConfiguredOctave> configuredOctaves =
-                    OctaveRegistry.getConfiguredOctavesForBiome(biome, planetModel.getType());
-            text.add("Configured Octaves: " + configuredOctaves.size());
+            // NEW: Show pass information instead of octave information
+            List<PassRegistry.ConfiguredPass> passes = PassRegistry.getConfiguredPassesForBiome(biome);
+            text.add("Generation Passes: " + passes.size());
 
-            for (OctaveRegistry.ConfiguredOctave configuredOctave : configuredOctaves) {
-                text.add("  " + configuredOctave.octave.getOctaveName() +
-                        " " + configuredOctave.config.getAllParameters().toString());
+            for (PassRegistry.ConfiguredPass pass : passes) {
+                text.add("  [" + pass.config.getPriority() + "] " + pass.pass.getPassName());
             }
 
-            // NEW DEBUG INFO
-            if (biome instanceof DesertBiomeType && ((DesertBiomeType) biome) == DesertBiomeType.GRANITE_MESAS) {
-                boolean inMesa = isInMesaFormation(pos.getX(), pos.getZ());
-                text.add("In Mesa Formation: " + (inMesa ? "YES (Stone)" : "NO (Sand)"));
-            }
         } else {
             text.add("No planet model loaded");
         }

@@ -196,39 +196,15 @@ public class DesertBiomeSource extends BiomeSource {
         }
 
         public static BiomeWeights calculate(DesertModel model) {
-            DesertConfig config = model.getConfig();
             Map<DesertBiomeType, Float> weights = new HashMap<>();
 
-            float tempPercent = Math.max(0, (config.getSurfaceTemperature() - 35f) / 65f);
-            float graniteBonus = config.getDominantRock() == DesertConfig.RockType.GRANITE ? 1f : 0f;
-            float limestoneBonus = config.getDominantRock() == DesertConfig.RockType.LIMESTONE ? 1f : 0f;
-            float sandstoneBonus = config.getDominantRock() == DesertConfig.RockType.SANDSTONE ? 1f : 0f;
+            // Simple: All biomes get equal base weight, modified by planet characteristics
+            DesertConfig config = model.getConfig();
 
-            // Dune Sea (always available)
-            float duneSeaWeight = config.getSandDensity() * 2f + config.getWindStrength() +
-                    sandstoneBonus * 4f - model.getRockExposure() * 2f;
-            weights.put(DesertBiomeType.DUNE_SEA, Math.max(1.0f, duneSeaWeight));
-
-            // Granite Mesas (requires granite rock OR low sand density)
-            if (config.getDominantRock() == DesertConfig.RockType.GRANITE || config.getSandDensity() < 0.4f) {
-                float mesaWeight = model.getRockExposure() * 3f + graniteBonus * 5f - config.getWindStrength() * 0.5f;
-                weights.put(DesertBiomeType.GRANITE_MESAS, Math.max(0.5f, mesaWeight));
-            }
-
-            // Limestone Canyons (requires limestone OR high humidity OR low sand)
-            if (config.getDominantRock() == DesertConfig.RockType.LIMESTONE ||
-                    config.getHumidity() > 0.2f || config.getSandDensity() < 0.3f) {
-                float canyonWeight = model.getRockExposure() * 2.5f + limestoneBonus * 4f +
-                        config.getHumidity() * 3f - config.getWindStrength() - tempPercent * 2f;
-                weights.put(DesertBiomeType.LIMESTONE_CANYONS, Math.max(0.3f, canyonWeight));
-            }
-
-            // Salt Flats (requires very low humidity AND high rock exposure)
-            if (config.getHumidity() < 0.15f && model.getRockExposure() > 0.3f) {
-                float saltWeight = model.getRockExposure() * 2f + (0.15f - config.getHumidity()) * 10f -
-                        config.getWindStrength() - config.getSandDensity() * 2f;
-                weights.put(DesertBiomeType.SALT_FLATS, Math.max(0.2f, saltWeight));
-            }
+            weights.put(DesertBiomeType.DUNE_SEA, 2.0f + config.getSandDensity());
+            weights.put(DesertBiomeType.GRANITE_MESAS, 2.0f + model.getRockExposure());
+            weights.put(DesertBiomeType.LIMESTONE_CANYONS, 2.0f + config.getHumidity() * 2f);
+            weights.put(DesertBiomeType.SALT_FLATS, 2.0f + (1.0f - config.getHumidity()));
 
             return new BiomeWeights(weights);
         }

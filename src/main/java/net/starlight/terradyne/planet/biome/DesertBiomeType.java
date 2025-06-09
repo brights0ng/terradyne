@@ -1,120 +1,206 @@
 package net.starlight.terradyne.planet.biome;
 
+import net.minecraft.block.Blocks;
 import net.starlight.terradyne.planet.PlanetType;
 import net.starlight.terradyne.planet.terrain.OctaveConfiguration;
+import net.starlight.terradyne.planet.terrain.pass.*;
 import net.starlight.terradyne.planet.terrain.octave.*;
 import java.util.List;
 
 /**
- * UPDATED DesertBiomeType - Now with only 4 biomes and rolling terrain under mesas
+ * COMPLETE DesertBiomeType - All 4 biomes with pass-based generation
  */
 public enum DesertBiomeType implements IBiomeType {
+
     DUNE_SEA("dune_sea") {
         @Override
-        public List<OctaveConfiguration> getOctaveConfigurations() {
-            // KEEPING the working Dune Sea configuration as-is
+        public List<PassConfiguration> getGenerationPasses() {
             return List.of(
-                    new OctaveConfiguration(FoundationOctave.class)
-                            .withParameter("amplitude", 2.0)
-                            .withParameter("frequency", 0.0001),
+                    // Pass 1: Sandy foundation with dune characteristics
+                    new PassConfiguration(TerrainFoundationPass.class, 0)
+                            .withParameter("blockType", Blocks.SAND.getDefaultState())
+                            .withParameter("minHeight", 70)
+                            .withParameter("foundation.amplitude", 2.0)  // Lower foundation variation
+                            .withParameter("foundation.frequency", 0.0001)
+                            .withParameter("rolling.hillHeight", 8.0)    // Gentler rolling base
+                            .withParameter("rolling.hillFrequency", 0.005)
+                            .withParameter("rolling.rockOutcropIntensity", 0.1) // Very few rock outcrops
+                            .withParameter("rolling.washDepth", 1.0)
+                            .withParameter("rolling.undulationStrength", 0.8),
 
-                    new OctaveConfiguration(DuneOctave.class)
+                    // Pass 2: Dune override - creates the actual dune formations
+                    new PassConfiguration(DuneOverridePass.class, 10)
+                            .withParameter("blockType", Blocks.SAND.getDefaultState())
                             .withParameter("maxHeight", 45.0)
                             .withParameter("minHeight", 10.0)
                             .withParameter("duneSpacing", 0.004)
-                            .withParameter("sharpness", 4)
-                            .withParameter("elevationVariation", 30.0),
+                            .withParameter("sharpness", 4.0)
+                            .withParameter("elevationVariation", 30.0)
+                            .withParameter("windInfluence", 0.6),
 
-                    new OctaveConfiguration(DetailOctave.class)
-                            .withParameter("intensity", 0.01)
-                            .withParameter("frequency", 0.08)
+                    // Pass 3: Fine surface detail
+                    new PassConfiguration(SurfaceDetailPass.class, 30)
+                            .withParameter("enableSurfaceDetail", true)
+                            .withParameter("detail.intensity", 0.08)  // Subtle sand ripples
+                            .withParameter("detail.frequency", 0.08)  // Fine sand texture
             );
         }
     },
 
     GRANITE_MESAS("granite_mesas") {
         @Override
-        public List<OctaveConfiguration> getOctaveConfigurations() {
-            // ENHANCED with rolling terrain base underneath the dramatic mesas
+        public List<PassConfiguration> getGenerationPasses() {
             return List.of(
-                    new OctaveConfiguration(FoundationOctave.class)
-                            .withParameter("amplitude", 8.0)      // Foundation for 75 base height
-                            .withParameter("frequency", 0.0004),
+                            // Pass 1: DRAMATIC sand accumulation against mesas
+                    new PassConfiguration(TerrainFoundationPass.class, 0)
+                            .withParameter("blockType", Blocks.SAND.getDefaultState())
+                            .withParameter("minHeight", 75)
+                            .withParameter("createMesaMounds", true)
+                            // Foundation parameters
+                            .withParameter("foundation.amplitude", 8.0)
+                            .withParameter("foundation.frequency", 0.0004)
+                            // Enhanced rolling terrain for better blending
+                            .withParameter("rolling.hillHeight", 25.0)
+                            .withParameter("rolling.hillFrequency", 0.003)
+                            .withParameter("rolling.rockOutcropIntensity", 0.4)
+                            .withParameter("rolling.washDepth", 1.8)
+                            .withParameter("rolling.undulationStrength", 1.5)
+                            // Mesa parameters (same as mesa pass)
+                            .withParameter("mesa.mesaHeight", 80.0)
+                            .withParameter("mesa.plateauFrequency", 0.005)
+                            .withParameter("mesa.steepness", 12.0)
+                            .withParameter("mesa.erosionIntensity", 0.5)
+                            .withParameter("mesa.layering", 1.0)
+                            // DRAMATIC sand accumulation parameters
+                            .withParameter("mesaMounds.threshold", 0.02)    // LOWER for wider influence area
+                            .withParameter("mesaMounds.heightScale", 0.8),   // MUCH HIGHER for dramatic sand buildup
 
-                    new OctaveConfiguration(RollingTerrainOctave.class)  // Broad sweeping terrain base
-                            .withParameter("hillHeight", 20.0)    // Good visible height
-                            .withParameter("hillFrequency", 0.004) // BROAD sweeping features
-                            .withParameter("rockOutcropIntensity", 0.5)  // Moderate rock scatter
-                            .withParameter("washDepth", 1.5)      // Gentle drainage
-                            .withParameter("undulationStrength", 1.3),   // Strong but not overwhelming
+                    // Pass 2: Heavily eroded pure stone mesas
+                    new PassConfiguration(MesaOverridePass.class, 10)
+                            .withParameter("blockType", Blocks.GRANITE.getDefaultState())
+                            .withParameter("weatheredBlock", Blocks.TERRACOTTA.getDefaultState())
+                            .withParameter("threshold", 0.3)
+                            .withParameter("addSurfaceTexture", true)
+                            .withParameter("addRockDebris", true)
+                            .withParameter("mesa.mesaHeight", 80.0)
+                            .withParameter("mesa.plateauFrequency", 0.005)
+                            .withParameter("mesa.steepness", 12.0)
+                            .withParameter("mesa.erosionIntensity", 1.2)
+                            .withParameter("mesa.layering", 1.0),
 
-                    new OctaveConfiguration(MesaOctave.class)     // Dramatic mesas rise from rolling base
-                            .withParameter("mesaHeight", 70.0)    // Tall dramatic mesas
-                            .withParameter("plateauFrequency", 0.006)  // Larger mesa formations
-                            .withParameter("steepness", 6.0)      // Very steep mesa sides
-                            .withParameter("erosionIntensity", 0.8)    // Heavy erosion for realism
-                            .withParameter("layering", 1.2),      // Visible rock layers
+                    // Pass 3: Granite caps
+                    new PassConfiguration(GraniteCapPass.class, 15)
+                            .withParameter("blockType", Blocks.GRANITE.getDefaultState())
+                            .withParameter("threshold", 0.7)
+                            .withParameter("capThickness", 6)
+                            .withParameter("maxSlopeVariation", 2)
+                            .withParameter("mesa.mesaHeight", 80.0)
+                            .withParameter("mesa.plateauFrequency", 0.005)
+                            .withParameter("mesa.steepness", 12.0),
 
-                    new OctaveConfiguration(DetailOctave.class)
-                            .withParameter("intensity", 0.12)     // Rocky surface detail
-                            .withParameter("frequency", 0.02)
-            );
+                    // Pass 4: Surface details
+                    new PassConfiguration(SurfaceDetailPass.class, 30)
+                            .withParameter("enableSurfaceDetail", true)
+                            .withParameter("detail.intensity", 0.12)
+                            .withParameter("detail.frequency", 0.02)
+        );
         }
     },
 
     LIMESTONE_CANYONS("limestone_canyons") {
         @Override
-        public List<OctaveConfiguration> getOctaveConfigurations() {
-            // LIMESTONE-FOCUSED canyon landscape
+        public List<PassConfiguration> getGenerationPasses() {
             return List.of(
-                    new OctaveConfiguration(FoundationOctave.class)
-                            .withParameter("amplitude", 12.0)     // Moderate base terrain
-                            .withParameter("frequency", 0.0008),
+                    // Pass 1: Sandy foundation
+                    new PassConfiguration(TerrainFoundationPass.class, 0)
+                            .withParameter("blockType", Blocks.SAND.getDefaultState())
+                            .withParameter("minHeight", 60)
+                            .withParameter("foundation.amplitude", 12.0)
+                            .withParameter("foundation.frequency", 0.0008)
+                            .withParameter("rolling.hillHeight", 10.0)  // Gentler rolling under limestone
+                            .withParameter("rolling.hillFrequency", 0.006)
+                            .withParameter("rolling.rockOutcropIntensity", 0.2)
+                            .withParameter("rolling.washDepth", 2.0)
+                            .withParameter("rolling.undulationStrength", 1.0),
 
-                    new OctaveConfiguration(CanyonOctave.class)   // PRIMARY feature - deep canyons
-                            .withParameter("maxDepth", 50.0)      // VERY deep limestone canyons
-                            .withParameter("channelFrequency", 0.003)
-                            .withParameter("meandering", 2.0)     // Highly meandering like real limestone canyons
-                            .withParameter("wallSteepness", 5.0)  // Very steep limestone walls
-                            .withParameter("tributaryDensity", 1.2),  // Dense tributary network
+                    // Pass 2: Limestone layer
+                    new PassConfiguration(MesaOverridePass.class, 10)
+                            .withParameter("blockType", Blocks.STONE.getDefaultState())
+                            .withParameter("threshold", 0.1) // Lower threshold - more limestone coverage
+                            .withParameter("baseHeight", 60)
+                            .withParameter("mesa.mesaHeight", 40.0)
+                            .withParameter("mesa.plateauFrequency", 0.004)
+                            .withParameter("mesa.steepness", 2.0), // Much gentler than granite mesas
 
-                    new OctaveConfiguration(CanyonOctave.class)   // SECONDARY canyon system at different scale
-                            .withParameter("maxDepth", 25.0)      // Secondary canyon depth
-                            .withParameter("channelFrequency", 0.008)  // Smaller scale canyons
-                            .withParameter("meandering", 1.0)
-                            .withParameter("wallSteepness", 3.0)
-                            .withParameter("tributaryDensity", 0.8),
+                    // Pass 3: Primary canyon carving
+                    new PassConfiguration(CanyonCarvingPass.class, 20)
+                            .withParameter("maxDepth", 50.0)
+                            .withParameter("threshold", 0.1)
+                            .withParameter("canyon.channelFrequency", 0.003)
+                            .withParameter("canyon.meandering", 2.0)
+                            .withParameter("canyon.wallSteepness", 5.0)
+                            .withParameter("canyon.tributaryDensity", 1.2),
 
-                    new OctaveConfiguration(DetailOctave.class)
-                            .withParameter("intensity", 0.15)     // Limestone texture
-                            .withParameter("frequency", 0.015)
+                    // Pass 4: Secondary canyon system (smaller scale)
+                    new PassConfiguration(CanyonCarvingPass.class, 22)
+                            .withParameter("maxDepth", 25.0)
+                            .withParameter("threshold", 0.2)
+                            .withParameter("canyon.channelFrequency", 0.008)
+                            .withParameter("canyon.meandering", 1.0)
+                            .withParameter("canyon.wallSteepness", 3.0)
+                            .withParameter("canyon.tributaryDensity", 0.8),
+
+                    // Pass 5: Surface details
+                    new PassConfiguration(SurfaceDetailPass.class, 30)
+                            .withParameter("detail.intensity", 0.15)
+                            .withParameter("detail.frequency", 0.015)
             );
         }
     },
 
     SALT_FLATS("salt_flats") {
         @Override
-        public List<OctaveConfiguration> getOctaveConfigurations() {
-            // ULTRA-flat with subtle drainage patterns
+        public List<PassConfiguration> getGenerationPasses() {
             return List.of(
-                    new OctaveConfiguration(FoundationOctave.class)
-                            .withParameter("amplitude", 2.0)      // Extremely flat base
-                            .withParameter("frequency", 0.0002),
+                    // Pass 1: Correct height foundation (75, not 64!)
+                    new PassConfiguration(TerrainFoundationPass.class, 0)
+                            .withParameter("blockType", Blocks.SAND.getDefaultState())
+                            .withParameter("baseSeaLevel", 75)  // FIXED: Correct height
+                            .withParameter("foundation.amplitude", 1.5)  // Very flat foundation
+                            .withParameter("foundation.frequency", 0.0001)
+                            .withParameter("rolling.hillHeight", 2.0)    // Minimal rolling
+                            .withParameter("rolling.hillFrequency", 0.012)
+                            .withParameter("rolling.rockOutcropIntensity", 0.02) // Almost no outcrops
+                            .withParameter("rolling.washDepth", 0.3)     // Very shallow drainage
+                            .withParameter("rolling.undulationStrength", 0.2),
 
-                    new OctaveConfiguration(CanyonOctave.class)   // Very shallow drainage only
-                            .withParameter("maxDepth", 4.0)       // Very shallow channels
-                            .withParameter("channelFrequency", 0.006)
-                            .withParameter("meandering", 0.3)     // Straighter drainage
-                            .withParameter("wallSteepness", 1.2)  // Very gentle slopes
-                            .withParameter("tributaryDensity", 0.2),  // Minimal tributaries
+                    // Pass 2: Very minimal drainage patterns
+                    new PassConfiguration(CanyonCarvingPass.class, 20)
+                            .withParameter("maxDepth", 2.0)        // Extremely shallow
+                            .withParameter("threshold", 0.4)       // Higher threshold - minimal carving
+                            .withParameter("canyon.channelFrequency", 0.008)
+                            .withParameter("canyon.meandering", 0.2)      // Straighter channels
+                            .withParameter("canyon.wallSteepness", 1.0)   // Very gentle slopes
+                            .withParameter("canyon.tributaryDensity", 0.1), // Minimal tributaries
 
-                    new OctaveConfiguration(DetailOctave.class)
-                            .withParameter("intensity", 0.05)     // Very fine surface detail
-                            .withParameter("frequency", 0.035)
-                            .withParameter("saltPatterns", true)  // Special salt crystal patterns
+                    // Pass 3: GEOMETRIC salt formations
+                    new PassConfiguration(GeometricSaltPass.class, 25)  // NEW PASS
+                            .withParameter("saltBlock", Blocks.SMOOTH_QUARTZ.getDefaultState()) // FIXED: Smooth quartz
+                            .withParameter("coverage", 0.9)        // 90% salt coverage
+                            .withParameter("polygonSize", 0.015)   // Size of salt polygons
+                            .withParameter("terraceHeight", 3)     // Height of salt terraces
+                            .withParameter("crystallineDetail", true)
+                            .withParameter("hexagonalPatterns", true),
+
+                    // Pass 4: Minimal surface details
+                    new PassConfiguration(SurfaceDetailPass.class, 30)
+                            .withParameter("enableSurfaceDetail", true)
+                            .withParameter("detail.intensity", 0.03)     // Very subtle
+                            .withParameter("detail.frequency", 0.05)
+                            .withParameter("detail.saltPatterns", true)
             );
         }
-    };
+    };;
 
     private final String name;
 
@@ -130,5 +216,13 @@ public enum DesertBiomeType implements IBiomeType {
     @Override
     public PlanetType getPlanetType() {
         return PlanetType.DESERT;
+    }
+
+    // Keep legacy method for backward compatibility during transition
+    @Override
+    @Deprecated
+    public List<OctaveConfiguration> getOctaveConfigurations() {
+        // Return empty list - we use passes now
+        return List.of();
     }
 }

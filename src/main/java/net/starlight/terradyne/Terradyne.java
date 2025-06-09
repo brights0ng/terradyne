@@ -5,6 +5,7 @@ import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.starlight.terradyne.planet.biome.ModBiomes;
 import net.starlight.terradyne.planet.dimension.ModDimensionTypes;
 import net.starlight.terradyne.planet.terrain.OctaveRegistry;
+import net.starlight.terradyne.planet.terrain.pass.PassRegistry;
 import net.starlight.terradyne.util.CommandRegistry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -29,6 +30,7 @@ public class Terradyne implements ModInitializer {
 	private void initializeTerrainSystem() {
 		try {
 			OctaveRegistry.initialize();
+			PassRegistry.initialize();
 			LOGGER.info("✓ Unified octave terrain system active");
 		} catch (Exception e) {
 			LOGGER.error("❌ Failed to initialize terrain system!", e);

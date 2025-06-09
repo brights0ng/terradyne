@@ -62,7 +62,7 @@ public class BiomeDataProvider extends FabricDynamicRegistryProvider {
                 .downfall(0.2f)
                 .precipitation(false)
                 .effects(new BiomeEffects.Builder()
-                        .skyColor(0xC0D8FF)        // Clearer sky at altitude
+                        .skyColor(0xE6D07A)        // Clearer sky at altitude
                         .fogColor(0xB8860B)        // Golden fog
                         .waterColor(0x3F76E4)
                         .waterFogColor(0x050533)

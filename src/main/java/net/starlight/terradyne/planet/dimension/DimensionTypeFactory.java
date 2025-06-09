@@ -38,7 +38,7 @@ public class DimensionTypeFactory {
                 1.0,                                     // coordinateScale - normal coordinate scaling
                 true,                                    // bedWorks - beds work on desert planets
                 false,                                   // piglinSafe - piglins don't naturally spawn/survive
-                -64,                                     // minY - standard world bottom
+                0,                                     // minY - standard world bottom
                 384,                                     // height - standard world height
                 384,                                     // logicalHeight - same as height
                 isExtremelyHot ? BlockTags.INFINIBURN_NETHER : BlockTags.INFINIBURN_OVERWORLD, // infiniburn behavior
@@ -70,7 +70,7 @@ public class DimensionTypeFactory {
                 1.0,                                     // coordinateScale - normal scaling
                 hasAtmosphere,                          // bedWorks - beds only work with atmosphere
                 false,                                   // piglinSafe - piglins don't survive on rocky worlds
-                -64,                                     // minY - standard bottom
+                0,                                     // minY - standard bottom
                 384,                                     // height - standard height
                 384,                                     // logicalHeight - same as height
                 BlockTags.INFINIBURN_OVERWORLD,        // infiniburn - normal fire behavior
@@ -98,7 +98,7 @@ public class DimensionTypeFactory {
                 1.0,                                     // coordinateScale - normal scaling
                 true,                                    // bedWorks - beds work normally
                 false,                                   // piglinSafe - piglins don't survive in ocean worlds
-                -64,                                     // minY - standard bottom (deeper for ocean trenches)
+                0,                                     // minY - standard bottom (deeper for ocean trenches)
                 384,                                     // height - standard height
                 384,                                     // logicalHeight - same as height
                 BlockTags.INFINIBURN_OVERWORLD,        // infiniburn - normal fire behavior
@@ -122,7 +122,7 @@ public class DimensionTypeFactory {
                 1.0,                                     // coordinateScale
                 true,                                    // bedWorks - beds work but dangerous due to heat
                 false,                                   // piglinSafe
-                -64,                                     // minY
+                0,                                     // minY
                 384,                                     // height
                 384,                                     // logicalHeight
                 BlockTags.INFINIBURN_NETHER,           // infiniburn - fire spreads like in nether
@@ -146,7 +146,7 @@ public class DimensionTypeFactory {
                 1.0,                                     // coordinateScale
                 true,                                    // bedWorks - beds work but cold
                 false,                                   // piglinSafe
-                -64,                                     // minY
+                0,                                     // minY
                 384,                                     // height
                 384,                                     // logicalHeight
                 BlockTags.INFINIBURN_OVERWORLD,        // infiniburn - normal (limited) fire behavior
