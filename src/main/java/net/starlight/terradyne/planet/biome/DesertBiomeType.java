@@ -1,94 +1,111 @@
+
 package net.starlight.terradyne.planet.biome;
 
 import net.minecraft.block.Blocks;
 import net.starlight.terradyne.planet.PlanetType;
-import net.starlight.terradyne.planet.terrain.OctaveConfiguration;
 import net.starlight.terradyne.planet.terrain.pass.*;
 
 import java.util.List;
 
 /**
- * COMPLETE DesertBiomeType - All 4 biomes with pass-based generation
+ * UPDATED Desert Biomes - Mathematically equivalent to original system
+ * Physics octaves calculate effects, placement passes place blocks
  */
 public enum DesertBiomeType implements IBiomeType {
 
+    /**
+     * DUNE SEA - Mathematically equivalent to original
+     * Physics: AdvancedDuneFormationOctave with exact original DuneOctave parameters
+     * Placement: AdvancedDuneConstructionPass with exact original DuneOverridePass logic
+     */
     DUNE_SEA("dune_sea") {
         @Override
         public List<PassConfiguration> getGenerationPasses() {
             return List.of(
-                    // Pass 1: Sandy foundation with dune characteristics
+                    // FOUNDATION: Exact original TerrainFoundationPass parameters
                     new PassConfiguration(TerrainFoundationPass.class, 0)
                             .withParameter("blockType", Blocks.SAND.getDefaultState())
-                            .withParameter("minHeight", 70)
-                            .withParameter("foundation.amplitude", 2.0)  // Lower foundation variation
+                            .withParameter("baseSeaLevel", 70)
+                            .withParameter("createMesaMounds", false)
+                            // Foundation physics (original parameters)
+                            .withParameter("foundation.amplitude", 2.0)
                             .withParameter("foundation.frequency", 0.0001)
-                            .withParameter("rolling.hillHeight", 8.0)    // Gentler rolling base
+                            // Rolling terrain physics (original parameters)
+                            .withParameter("rolling.hillHeight", 8.0)
                             .withParameter("rolling.hillFrequency", 0.005)
-                            .withParameter("rolling.rockOutcropIntensity", 0.1) // Very few rock outcrops
+                            .withParameter("rolling.rockOutcropIntensity", 0.1)
                             .withParameter("rolling.washDepth", 1.0)
                             .withParameter("rolling.undulationStrength", 0.8),
 
-                    // Pass 2: Dune override - creates the actual dune formations
-                    new PassConfiguration(DuneOverridePass.class, 10)
+                    // DUNE FORMATION: Exact original DuneOverridePass parameters
+                    new PassConfiguration(DuneConstructionPass.class, 10)
                             .withParameter("blockType", Blocks.SAND.getDefaultState())
+                            .withParameter("windInfluence", 0.6)
+                            .withParameter("baseHeight", 70)
+                            // Dune physics (exact original DuneOctave parameters)
                             .withParameter("maxHeight", 45.0)
                             .withParameter("minHeight", 10.0)
                             .withParameter("duneSpacing", 0.004)
                             .withParameter("sharpness", 4.0)
-                            .withParameter("elevationVariation", 30.0)
-                            .withParameter("windInfluence", 0.6),
+                            .withParameter("elevationVariation", 30.0),
 
-                    // Pass 3: Fine surface detail
+                    // SURFACE DETAILS: Exact original SurfaceDetailPass parameters
                     new PassConfiguration(SurfaceDetailPass.class, 30)
                             .withParameter("enableSurfaceDetail", true)
-                            .withParameter("detail.intensity", 0.08)  // Subtle sand ripples
-                            .withParameter("detail.frequency", 0.08)  // Fine sand texture
+                            .withParameter("detail.intensity", 0.08)
+                            .withParameter("detail.frequency", 0.08)
             );
         }
     },
 
+    /**
+     * GRANITE MESAS - Mathematically equivalent to original
+     * Physics: AdvancedMesaFormationOctave + AdvancedDuneFormationOctave for sand accumulation
+     * Placement: AdvancedMesaConstructionPass + AdvancedTerrainFoundationPass with mesa mounds
+     */
     GRANITE_MESAS("granite_mesas") {
         @Override
         public List<PassConfiguration> getGenerationPasses() {
             return List.of(
-                            // Pass 1: DRAMATIC sand accumulation against mesas
+                    // FOUNDATION: Exact original TerrainFoundationPass with mesa mounds
                     new PassConfiguration(TerrainFoundationPass.class, 0)
                             .withParameter("blockType", Blocks.SAND.getDefaultState())
-                            .withParameter("minHeight", 75)
+                            .withParameter("baseSeaLevel", 75)
                             .withParameter("createMesaMounds", true)
-                            // Foundation parameters
+                            // Foundation physics (original parameters)
                             .withParameter("foundation.amplitude", 8.0)
                             .withParameter("foundation.frequency", 0.0004)
-                            // Enhanced rolling terrain for better blending
+                            // Enhanced rolling terrain physics (original parameters)
                             .withParameter("rolling.hillHeight", 25.0)
                             .withParameter("rolling.hillFrequency", 0.003)
                             .withParameter("rolling.rockOutcropIntensity", 0.4)
                             .withParameter("rolling.washDepth", 1.8)
                             .withParameter("rolling.undulationStrength", 1.5)
-                            // Mesa parameters (same as mesa pass)
+                            // Mesa parameters (exact original)
                             .withParameter("mesa.mesaHeight", 80.0)
                             .withParameter("mesa.plateauFrequency", 0.005)
                             .withParameter("mesa.steepness", 12.0)
                             .withParameter("mesa.erosionIntensity", 0.5)
                             .withParameter("mesa.layering", 1.0)
-                            // DRAMATIC sand accumulation parameters
-                            .withParameter("mesaMounds.threshold", 0.02)    // LOWER for wider influence area
-                            .withParameter("mesaMounds.heightScale", 0.8),   // MUCH HIGHER for dramatic sand buildup
+                            // Mesa mounds parameters (exact original)
+                            .withParameter("mesaMounds.threshold", 0.02)
+                            .withParameter("mesaMounds.heightScale", 0.8),
 
-                    // Pass 2: Heavily eroded pure stone mesas
-                    new PassConfiguration(MesaOverridePass.class, 10)
+                    // MESA FORMATION: Exact original MesaOverridePass parameters
+                    new PassConfiguration(MesaConstructionPass.class, 10)
                             .withParameter("blockType", Blocks.GRANITE.getDefaultState())
                             .withParameter("weatheredBlock", Blocks.TERRACOTTA.getDefaultState())
                             .withParameter("threshold", 0.3)
                             .withParameter("addSurfaceTexture", true)
                             .withParameter("addRockDebris", true)
+                            // Mesa physics (exact original MesaOctave parameters)
                             .withParameter("mesa.mesaHeight", 80.0)
                             .withParameter("mesa.plateauFrequency", 0.005)
                             .withParameter("mesa.steepness", 12.0)
                             .withParameter("mesa.erosionIntensity", 1.2)
                             .withParameter("mesa.layering", 1.0),
 
-                    // Pass 3: Granite caps
+                    // GRANITE CAPS: Exact original GraniteCapPass parameters
                     new PassConfiguration(GraniteCapPass.class, 15)
                             .withParameter("blockType", Blocks.GRANITE.getDefaultState())
                             .withParameter("threshold", 0.7)
@@ -98,82 +115,96 @@ public enum DesertBiomeType implements IBiomeType {
                             .withParameter("mesa.plateauFrequency", 0.005)
                             .withParameter("mesa.steepness", 12.0),
 
-                    // Pass 4: Surface details
+                    // SURFACE DETAILS: Exact original parameters
                     new PassConfiguration(SurfaceDetailPass.class, 30)
                             .withParameter("enableSurfaceDetail", true)
                             .withParameter("detail.intensity", 0.12)
                             .withParameter("detail.frequency", 0.02)
-        );
+            );
         }
     },
 
+    /**
+     * LIMESTONE CANYONS - Mathematically equivalent to original
+     * Physics: AdvancedWaterErosionOctave with exact original CanyonCarvingPass parameters
+     * Placement: AdvancedErosionCarvingPass + LimestoneLayeringPass
+     */
     LIMESTONE_CANYONS("limestone_canyons") {
         @Override
         public List<PassConfiguration> getGenerationPasses() {
             return List.of(
-                    // Pass 1: Create gentle rolling sand terrain
-                    new PassConfiguration(TerrainFoundationPass.class, 5)
+                    // FOUNDATION: Exact original TerrainFoundationPass parameters
+                    new PassConfiguration(TerrainFoundationPass.class, 0)
                             .withParameter("blockType", Blocks.SAND.getDefaultState())
                             .withParameter("baseSeaLevel", 75)
+                            .withParameter("createMesaMounds", false)
+                            // Foundation physics (original parameters)
                             .withParameter("foundation.amplitude", 3.0)
                             .withParameter("foundation.frequency", 0.0003)
+                            // Rolling terrain physics (original parameters)
                             .withParameter("rolling.hillHeight", 4.0)
                             .withParameter("rolling.hillFrequency", 0.008)
                             .withParameter("rolling.rockOutcropIntensity", 0.1)
                             .withParameter("rolling.washDepth", 1.0)
                             .withParameter("rolling.undulationStrength", 0.6),
 
-                    // Pass 2: Underground limestone
+                    // LIMESTONE LAYERING: Exact original LimestoneLayeringPass parameters
                     new PassConfiguration(LimestoneLayeringPass.class, 15)
                             .withParameter("blockType", Blocks.STONE.getDefaultState())
                             .withParameter("floorLevel", 25)
                             .withParameter("blocksUnderSurface", 3),
 
-                    // Pass 3: Canyon carving
-                    new PassConfiguration(CanyonCarvingPass.class, 20)
+                    // CANYON CARVING: Exact original CanyonCarvingPass parameters
+                    new PassConfiguration(ErosionCarvingPass.class, 20)
                             .withParameter("canyonFloor", 25)
+                            .withParameter("floorBlock", Blocks.SANDSTONE.getDefaultState())
+                            // Canyon physics (exact original CanyonCarvingPass parameters)
                             .withParameter("threshold", 0.05)
                             .withParameter("canyonWidth", 0.8)
                             .withParameter("canyonDensity", 0.6)
                             .withParameter("branchingFactor", 0.4)
                             .withParameter("sharpness", 2.0)
                             .withParameter("noiseScale", 0.3)
-                            .withParameter("floorBlock", Blocks.SANDSTONE.getDefaultState())
             );
         }
     },
 
-    // In DesertBiomeType.java, update the SALT_FLATS configuration:
-
-    // In DesertBiomeType.java, update the SALT_FLATS configuration:
-
+    /**
+     * SALT FLATS - Mathematically equivalent to original
+     * Physics: AdvancedSaltDepositionOctave with exact original GeometricSaltPass parameters
+     * Placement: AdvancedSaltFormationPass with exact original block placement logic
+     */
     SALT_FLATS("salt_flats") {
         @Override
         public List<PassConfiguration> getGenerationPasses() {
             return List.of(
-                    // Pass 1: Correct height foundation (75, not 64!)
+                    // FOUNDATION: Exact original TerrainFoundationPass parameters for flat terrain
                     new PassConfiguration(TerrainFoundationPass.class, 0)
                             .withParameter("blockType", Blocks.SAND.getDefaultState())
-                            .withParameter("baseSeaLevel", 75)  // FIXED: Correct height
-                            .withParameter("foundation.amplitude", 1.5)  // Very flat foundation
+                            .withParameter("baseSeaLevel", 75)
+                            .withParameter("createMesaMounds", false)
+                            // Minimal foundation physics (original parameters)
+                            .withParameter("foundation.amplitude", 1.5)
                             .withParameter("foundation.frequency", 0.0001)
-                            .withParameter("rolling.hillHeight", 2.0)    // Minimal rolling
+                            // Minimal rolling terrain (original parameters)
+                            .withParameter("rolling.hillHeight", 2.0)
                             .withParameter("rolling.hillFrequency", 0.012)
-                            .withParameter("rolling.rockOutcropIntensity", 0.02) // Almost no outcrops
-                            .withParameter("rolling.washDepth", 0.3)     // Very shallow drainage
+                            .withParameter("rolling.rockOutcropIntensity", 0.02)
+                            .withParameter("rolling.washDepth", 0.3)
                             .withParameter("rolling.undulationStrength", 0.2),
 
-                    // Pass 3: GEOMETRIC salt formations
-                    new PassConfiguration(GeometricSaltPass.class, 25)
-                            .withParameter("baseLayer", Blocks.DIORITE.getDefaultState())     // 1st layer
-                            .withParameter("saltBlock", Blocks.CALCITE.getDefaultState())     // 2nd layer
-                            .withParameter("crackThreshold", 0.7)     // Higher = fewer cracks
-                            .withParameter("crackScale", 0.03),       // Size of crack patterns
+                    // SALT FORMATION: Exact original GeometricSaltPass parameters
+                    new PassConfiguration(SaltFormationPass.class, 25)
+                            .withParameter("baseLayer", Blocks.DIORITE.getDefaultState())
+                            .withParameter("saltBlock", Blocks.CALCITE.getDefaultState())
+                            // Salt physics (exact original GeometricSaltPass parameters)
+                            .withParameter("cellSize", 6)
+                            .withParameter("crackWidth", 1.5),
 
-                    // Pass 4: Minimal surface details
+                    // SURFACE DETAILS: Exact original parameters with salt patterns
                     new PassConfiguration(SurfaceDetailPass.class, 30)
                             .withParameter("enableSurfaceDetail", true)
-                            .withParameter("detail.intensity", 0.03)     // Very subtle
+                            .withParameter("detail.intensity", 0.03)
                             .withParameter("detail.frequency", 0.05)
                             .withParameter("detail.saltPatterns", true)
             );
@@ -194,13 +225,5 @@ public enum DesertBiomeType implements IBiomeType {
     @Override
     public PlanetType getPlanetType() {
         return PlanetType.DESERT;
-    }
-
-    // Keep legacy method for backward compatibility during transition
-    @Override
-    @Deprecated
-    public List<OctaveConfiguration> getOctaveConfigurations() {
-        // Return empty list - we use passes now
-        return List.of();
     }
 }

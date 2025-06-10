@@ -8,7 +8,7 @@ import net.starlight.terradyne.planet.biome.IBiomeType;
 import net.starlight.terradyne.planet.terrain.OctaveConfiguration;
 import net.starlight.terradyne.planet.terrain.OctaveContext;
 import net.starlight.terradyne.planet.terrain.OctaveRegistry;
-import net.starlight.terradyne.planet.terrain.octave.MesaOctave;
+import net.starlight.terradyne.planet.terrain.octave.MesaFormationOctave;
 
 /**
  * FIXED Granite Cap Pass - Only places granite on FLAT mesa tops, not slopes
@@ -17,7 +17,7 @@ public class GraniteCapPass implements IGenerationPass {
 
     @Override
     public void applyPass(Chunk chunk, IBiomeType biome, OctaveContext context, PassConfiguration config) {
-        MesaOctave mesaOctave = (MesaOctave) OctaveRegistry.getOctave(MesaOctave.class);
+        MesaFormationOctave mesaOctave = (MesaFormationOctave) OctaveRegistry.getOctave(MesaFormationOctave.class);
         if (mesaOctave == null) return;
 
         // FIXED: Read from configuration instead of hardcoding
@@ -26,7 +26,7 @@ public class GraniteCapPass implements IGenerationPass {
         int capThickness = config.getInt("capThickness", 6);
         int maxSlopeVariation = config.getInt("maxSlopeVariation", 2);
 
-        OctaveConfiguration mesaConfig = new OctaveConfiguration(MesaOctave.class)
+        OctaveConfiguration mesaConfig = new OctaveConfiguration(MesaFormationOctave.class)
                 .withParameter("mesaHeight", config.getDouble("mesa.mesaHeight", 80.0))
                 .withParameter("plateauFrequency", config.getDouble("mesa.plateauFrequency", 0.005))
                 .withParameter("steepness", config.getDouble("mesa.steepness", 12.0));

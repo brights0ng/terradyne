@@ -14,37 +14,28 @@ public class PassRegistry {
     private static boolean initialized = false;
 
     public static synchronized void initialize() {
-        if (initialized) {
-            return;
-        }
+        if (initialized) return;
 
-        Terradyne.LOGGER.info("=== Initializing Pass-Based Generation System ===");
+        Terradyne.LOGGER.info("=== Initializing Block Placement Engine (Passes) ===");
 
-        // === FOUNDATION PASSES (Priority 0-9) ===
-        registerPass(new TerrainFoundationPass());
-
-        // === OVERRIDE PASSES (Priority 10-19) ===
-        registerPass(new MesaOverridePass());
-        registerPass(new DuneOverridePass());        // NEW
-        registerPass(new GraniteCapPass());
+        // === FOUNDATION PLACEMENT ===
+        registerPass(new TerrainFoundationPass());       // Base terrain block placement
         registerPass(new LimestoneLayeringPass());
 
-        // === OVERRIDE PASSES (Priority 10-19) ===
-        registerPass(new FlatSurfacePass());
+        // === FORMATION PLACEMENT ===
+        registerPass(new DuneConstructionPass());       // Dune block construction
+        registerPass(new MesaConstructionPass());       // Mesa block construction
+        registerPass(new SaltFormationPass());          // Salt pattern placement
 
+        // === CARVING PLACEMENT ===
+        registerPass(new ErosionCarvingPass());         // Erosion block removal
 
-        // === CARVING PASSES (Priority 20-29) ===
-        registerPass(new CanyonCarvingPass());
-        registerPass(new GeometricSaltPass());         // ← Make sure this line exists!
-        registerPass(new SaltSurfacePass());         // NEW
-
-        // === DETAIL PASSES (Priority 30-39) ===
-        registerPass(new SurfaceDetailPass());
+        // === DETAIL PLACEMENT ===
+        registerPass(new SurfaceDetailPass());          // Surface texture placement
+        registerPass(new GraniteCapPass());
 
         initialized = true;
-        Terradyne.LOGGER.info("✅ Registered {} generation passes", passInstances.size());
-
-        logRegisteredPasses();
+        Terradyne.LOGGER.info("✅ Block Placement Engine: {} passes registered", passInstances.size());
     }
 
     /**

@@ -19,33 +19,28 @@ public class OctaveRegistry {
      * Initialize the octave registry with all octaves for the 4-biome desert system
      */
     public static synchronized void initialize() {
-        if (initialized) {
-            return;
-        }
+        if (initialized) return;
 
-        Terradyne.LOGGER.info("=== Initializing 4-Biome Desert Terrain System ===");
+        Terradyne.LOGGER.info("=== Initializing Physics Engine (Octaves) ===");
 
-        // === FOUNDATIONAL OCTAVES ===
-        registerOctave(new FoundationOctave());
+        // === FOUNDATIONAL PHYSICS ===
+        registerOctave(new FoundationOctave());        // Continental base physics
+        registerOctave(new RollingTerrainOctave());     // Local terrain variation physics
 
-        // === ADDITIVE TERRAIN OCTAVES ===
-        registerOctave(new DuneOctave());                // Dune Sea
-        registerOctave(new MesaOctave());                // Granite Mesas - dramatic formations
-        registerOctave(new RollingTerrainOctave());      // RENAMED from Scrubland - gentle base terrain
-        registerOctave(new VolcanicFlowOctave());        // For future use
+        // === FORMATION PHYSICS ===
+        registerOctave(new DuneFormationOctave());      // Wind-driven sand physics
+        registerOctave(new MesaFormationOctave());      // Geological uplift physics
+        registerOctave(new SaltDepositionOctave());     // Evaporation/crystallization physics
 
-        // === SUBTRACTIVE/CARVING OCTAVES ===
-        registerOctave(new CanyonOctave());              // Limestone Canyons + Mesa erosion
-        registerOctave(new WindErosionOctave());         // For future extreme environments
+        // === EROSION PHYSICS ===
+        registerOctave(new WaterErosionOctave());       // Water flow and erosion
+        registerOctave(new WindErosionOctave());        // Wind erosion patterns
 
-        // === DETAIL OCTAVES ===
-        registerOctave(new DetailOctave());              // Surface texture - includes salt patterns
-        registerOctave(new OasisOctave());               // For future rare oasis features
+        // === DETAIL PHYSICS ===
+        registerOctave(new DetailOctave());             // Surface texture physics
 
         initialized = true;
-        Terradyne.LOGGER.info("✅ Registered {} octave types for 4-biome desert system", octaveInstances.size());
-
-        logRegisteredOctaves();
+        Terradyne.LOGGER.info("✅ Physics Engine: {} octaves registered", octaveInstances.size());
     }
 
     /**

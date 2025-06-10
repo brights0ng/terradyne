@@ -29,9 +29,7 @@ public class FoundationOctave implements IUnifiedOctave {
     }
 
     @Override
-    public double getPrimaryFrequency() {
-        return 0.001; // Default, overridden by config
-    }
+    public double getPrimaryFrequency() { return 0.001; }
 
     @Override
     public Set<PlanetType> getSupportedPlanetTypes() {
@@ -39,14 +37,12 @@ public class FoundationOctave implements IUnifiedOctave {
     }
 
     @Override
-    public String getOctaveName() {
-        return "Foundation";
-    }
+    public String getOctaveName() { return "FoundationPhysics"; }
 
     @Override
     public String getParameterDocumentation() {
         return """
-            Foundation Octave Parameters:
+            Foundation Physics Octave Parameters:
             - amplitude (double, default 10.0): Height variation strength
             - frequency (double, default 0.001): Scale of continental features
             """;
