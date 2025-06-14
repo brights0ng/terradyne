@@ -1,30 +1,39 @@
 package net.starlight.terradyne.planet.biome;
 
 import net.starlight.terradyne.planet.PlanetType;
-import net.starlight.terradyne.planet.terrain.OctaveConfiguration;
+import net.starlight.terradyne.planet.terrain.octave.OctaveConfiguration;
 import net.starlight.terradyne.planet.terrain.pass.PassConfiguration;
 import java.util.List;
 
 /**
- * Updated biome interface - now supports both octave configurations (legacy)
- * and generation passes (new system)
+ * Interface for biome types
+ * Biomes define which generation passes to use
  */
 public interface IBiomeType {
-    String getName();
-    PlanetType getPlanetType();
-
+    
     /**
-     * LEGACY: Get the configured octaves this biome wants applied
-     * @deprecated Use getGenerationPasses() instead
+     * Get the name of this biome
+     */
+    String getName();
+    
+    /**
+     * Get the planet type this biome belongs to
+     * For physics planets, this emerges from conditions
+     */
+    PlanetType getPlanetType();
+    
+    /**
+     * Get the generation passes this biome uses
+     * Passes are applied in priority order
+     */
+    List<PassConfiguration> getGenerationPasses();
+    
+    /**
+     * Legacy: Get octave configurations
+     * Will be removed once we fully transition to passes
      */
     @Deprecated
     default List<OctaveConfiguration> getOctaveConfigurations() {
-        return List.of(); // Default empty implementation
+        return List.of();
     }
-
-    /**
-     * NEW: Get the generation passes this biome uses
-     * Each pass can use multiple octaves and place/modify blocks
-     */
-    List<PassConfiguration> getGenerationPasses();
 }
