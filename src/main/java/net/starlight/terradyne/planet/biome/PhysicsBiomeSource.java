@@ -71,16 +71,16 @@ public class PhysicsBiomeSource extends BiomeSource {
      * Get the biome type at world coordinates
      * For compatibility with existing chunk generator
      */
-    public IBiomeType getBiomeTypeAt(int worldX, int worldZ) {
-        // Check if this is a debug planet
-        if (model != null && model.getConfig() instanceof PlanetPhysicsConfig physicsConfig) {
-            // If tectonic activity is 0 and water height is 0, assume debug mode
-            if (physicsConfig.getTectonicActivity() == 0.0f && physicsConfig.getWaterHeight() == 0.0f) {
-                return PhysicsBiomeType.DEBUG_PLATES;
-            }
-        }
-        
-        // For now, return our test biome type everywhere
-        return PhysicsBiomeType.TECTONIC_TEST;
-    }
+//    public IBiomeType getBiomeTypeAt(int worldX, int worldZ) {
+//        // Check if this is a debug planet
+//        if (model != null && model.getConfig() instanceof PlanetPhysicsConfig physicsConfig) {
+//            // If tectonic activity is 0 and water height is 0, assume debug mode
+//            if (physicsConfig.getTectonicActivity() == 0.0f && physicsConfig.getWaterHeight() == 0.0f) {
+//                return PhysicsBiomeType.DEBUG_PLATES;
+//            }
+//        }
+//
+//        // For now, return our test biome type everywhere
+//        return PhysicsBiomeType.TECTONIC_TEST;
+//    }
 }

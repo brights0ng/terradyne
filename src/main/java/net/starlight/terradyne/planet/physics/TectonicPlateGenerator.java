@@ -1,6 +1,7 @@
 package net.starlight.terradyne.planet.physics;
 
 import net.minecraft.util.math.Vec2f;
+import net.minecraft.util.math.noise.SimplexNoiseSampler;
 import net.minecraft.util.math.random.Random;
 import net.starlight.terradyne.Terradyne;
 
@@ -130,7 +131,10 @@ public class TectonicPlateGenerator {
         
         return nearestPlate;
     }
-    
+
+    // The full getBoundaryInfoAt method should have this import added to the file:
+// import net.minecraft.util.math.random.Random;
+
     /**
      * Get plate boundary info at a position
      * Returns distance to nearest boundary and the boundary type
@@ -139,18 +143,18 @@ public class TectonicPlateGenerator {
         if (plates.size() <= 1) {
             return new PlateBoundaryInfo(Float.MAX_VALUE, BoundaryType.NONE, 0.0f);
         }
-        
+
         // Find two nearest plates
         TectonicPlate nearest = null;
         TectonicPlate secondNearest = null;
         float nearestDist = Float.MAX_VALUE;
         float secondNearestDist = Float.MAX_VALUE;
-        
+
         for (TectonicPlate plate : plates) {
             float dx = worldX - plate.getCenterX();
             float dz = worldZ - plate.getCenterZ();
             float distance = (float)Math.sqrt(dx * dx + dz * dz);
-            
+
             if (distance < nearestDist) {
                 secondNearest = nearest;
                 secondNearestDist = nearestDist;
@@ -161,17 +165,108 @@ public class TectonicPlateGenerator {
                 secondNearestDist = distance;
             }
         }
-        
-        // Calculate distance to boundary (midpoint between two nearest plates)
-        float boundaryDistance = (secondNearestDist - nearestDist) / 2.0f;
-        
+
+        // FIX: Calculate approximate distance to boundary
+        // The boundary is roughly at the midpoint between the two nearest plate centers
+        // Distance to boundary = how far we are from that midpoint line
+
+        // First, find the midpoint between the two plate centers
+        float midX = (nearest.getCenterX() + secondNearest.getCenterX()) / 2.0f;
+        float midZ = (nearest.getCenterZ() + secondNearest.getCenterZ()) / 2.0f;
+
+        // Vector from nearest to second nearest plate
+        float plateVecX = secondNearest.getCenterX() - nearest.getCenterX();
+        float plateVecZ = secondNearest.getCenterZ() - nearest.getCenterZ();
+        float plateVecLength = (float)Math.sqrt(plateVecX * plateVecX + plateVecZ * plateVecZ);
+
+        // Normalize the vector
+        plateVecX /= plateVecLength;
+        plateVecZ /= plateVecLength;
+
+        // Vector from midpoint to our position
+        float toPointX = worldX - midX;
+        float toPointZ = worldZ - midZ;
+
+        // Project onto the perpendicular to get distance to boundary line
+        // The boundary runs perpendicular to the line between plate centers
+        float boundaryDistance = Math.abs(toPointX * plateVecX + toPointZ * plateVecZ);
+
+        // Alternative simpler approach: use the ratio of distances
+        // When we're exactly at the boundary, distances to both plates should be similar
+        float distanceRatio = nearestDist / (nearestDist + secondNearestDist);
+        // Convert ratio to distance estimate (0.5 = at boundary, 0 or 1 = at plate center)
+        float boundaryProximity = Math.abs(distanceRatio - 0.5f) * 2.0f; // 0 at boundary, 1 at center
+        boundaryDistance = boundaryProximity * (plateVecLength / 2.0f);
+
         // Determine boundary type based on plate types
         BoundaryType boundaryType = determineBoundaryType(nearest, secondNearest);
-        
+
         // Calculate volatility based on distance to boundary
         float volatility = calculateVolatility(boundaryDistance, boundaryType);
-        
+
         return new PlateBoundaryInfo(boundaryDistance, boundaryType, volatility);
+    }
+
+    /**
+     * Calculate volatility based on distance to boundary
+     * NOW WITH ORGANIC, NOISY BOUNDARIES!
+     */
+    private float calculateVolatility(float boundaryDistance, BoundaryType boundaryType) {
+        // Get noise at this position for organic boundary shapes
+        // Use the seed to ensure consistent noise
+        Random random = Random.create(seed);
+        SimplexNoiseSampler boundaryNoise = new SimplexNoiseSampler(random);
+
+        // Sample noise at the position to vary the cutoff distance
+        // This creates organic, flowing boundary shapes
+        float noiseValue = (float)boundaryNoise.sample(
+                boundaryDistance * 0.02,  // Use distance as one coordinate
+                boundaryType.ordinal() * 100.0,  // Separate noise for each boundary type
+                0
+        );
+
+        // Base distance is 100, but varies from 50 to 150 based on noise
+        float baseDistance = 100.0f;
+        float distanceVariation = 50.0f;
+        float maxDistance = baseDistance + (noiseValue * distanceVariation);
+
+        // Add some high-frequency noise for extra organic feel
+        float detailNoise = (float)boundaryNoise.sample(
+                boundaryDistance * 0.1,
+                boundaryType.ordinal() * 200.0,
+                0
+        ) * 0.3f;
+
+        maxDistance += detailNoise * 10.0f;
+
+        if (boundaryDistance > maxDistance) return 0.0f;
+
+        // Volatility strength based on boundary type
+        // These values now represent how much they modify the continental noise
+        float maxVolatility = switch (boundaryType) {
+            case DIVERGENT -> 0.7f;   // Moderate uplift (rift mountains)
+            case TRANSFORM -> -0.8f;  // Deep valleys
+            case CONVERGENT -> 1.2f;  // Strong uplift (tall mountain ranges)
+            case NONE -> 0.0f;
+        };
+
+        // Organic falloff using noise-modified distance
+        float normalizedDistance = boundaryDistance / maxDistance;
+
+        // Use a smoother curve with some noise variation
+        float falloff = 1.0f - (normalizedDistance * normalizedDistance);
+
+        // Add some noise to the falloff itself for more organic transitions
+        float falloffNoise = (float)boundaryNoise.sample(
+                boundaryDistance * 0.05,
+                boundaryType.ordinal() * 300.0,
+                0
+        ) * 0.2f;
+
+        falloff = Math.max(0.0f, falloff + falloffNoise);
+        falloff = Math.min(1.0f, falloff);
+
+        return maxVolatility * falloff;
     }
     
     /**
@@ -191,30 +286,11 @@ public class TectonicPlateGenerator {
             return BoundaryType.CONVERGENT; // Difference of 2 = convergent
         }
     }
-    
-    /**
-     * Calculate volatility based on distance to boundary
-     */
-    private float calculateVolatility(float boundaryDistance, BoundaryType boundaryType) {
-        // No volatility far from boundaries
-        if (boundaryDistance > 1000.0f) return 0.0f;
-        
-        // Volatility strength based on boundary type
-        float maxVolatility = switch (boundaryType) {
-            case DIVERGENT -> 1.0f;   // Positive volatility (rifts)
-            case TRANSFORM -> -0.5f;  // Negative volatility (valleys)
-            case CONVERGENT -> 1.5f;  // Strong positive (mountains)
-            case NONE -> 0.0f;
-        };
-        
-        // Smooth falloff based on distance
-        float falloff = 1.0f - (boundaryDistance / 1000.0f);
-        return maxVolatility * falloff * falloff; // Quadratic falloff
+
+    public Collection<Object> getPlates() {
+        return Collections.singleton(plates);
     }
-    
-    // Getters
-    public List<TectonicPlate> getPlates() { return plates; }
-    
+
     /**
      * Tectonic plate data
      */

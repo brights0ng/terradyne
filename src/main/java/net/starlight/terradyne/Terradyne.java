@@ -2,8 +2,6 @@ package net.starlight.terradyne;
 
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
-import net.starlight.terradyne.planet.terrain.octave.OctaveRegistry;
-import net.starlight.terradyne.planet.terrain.pass.PassRegistry;
 import net.starlight.terradyne.util.CommandRegistry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -32,8 +30,6 @@ public class Terradyne implements ModInitializer {
     private void initializeTerrainSystem() {
         try {
             // Initialize registries
-            OctaveRegistry.initialize();
-            PassRegistry.initialize();
             LOGGER.info("✓ Generation systems initialized");
             
         } catch (Exception e) {

@@ -23,8 +23,6 @@ import net.starlight.terradyne.planet.biome.IBiomeType;
 import net.starlight.terradyne.planet.biome.PhysicsBiomeSource;
 import net.starlight.terradyne.planet.physics.IPlanetModel;
 import net.starlight.terradyne.planet.terrain.MasterNoiseProvider;
-import net.starlight.terradyne.planet.terrain.octave.OctaveContext;
-import net.starlight.terradyne.planet.terrain.pass.PassRegistry;
 
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
@@ -54,8 +52,7 @@ public class UniversalChunkGenerator extends ChunkGenerator {
             this.masterNoiseProvider = new MasterNoiseProvider(planetModel.getConfig().getSeed());
             
             // Initialize registries
-            PassRegistry.initialize();
-            
+
             Terradyne.LOGGER.info("=== UNIVERSAL CHUNK GENERATOR INITIALIZED ===");
             Terradyne.LOGGER.info("Planet: {}", planetModel.getConfig().getPlanetName());
             Terradyne.LOGGER.info("Type: {}", planetModel.getType().getDisplayName());
@@ -96,38 +93,38 @@ public class UniversalChunkGenerator extends ChunkGenerator {
             ChunkPos chunkPos = chunk.getPos();
             int centerX = chunkPos.getStartX() + 8;
             int centerZ = chunkPos.getStartZ() + 8;
-            IBiomeType biomeType = getBiomeTypeAt(centerX, centerZ);
+//            IBiomeType biomeType = getBiomeTypeAt(centerX, centerZ);
             
-            // Create context
-            OctaveContext context = new OctaveContext(
-                    planetModel,
-                    biomeType,
-                    masterNoiseProvider,
-                    64.0 // Base height
-            );
-            
-            // Get configured passes for this biome
-            List<PassRegistry.ConfiguredPass> passes = PassRegistry.getConfiguredPassesForBiome(biomeType);
-            
-            if (passes.isEmpty()) {
-                Terradyne.LOGGER.warn("No passes configured for biome {} - using fallback", biomeType.getName());
-                generateFallbackTerrain(chunk);
-                return;
-            }
-            
-            // Apply each pass in order
-            for (PassRegistry.ConfiguredPass configuredPass : passes) {
-                try {
-                    configuredPass.pass.applyPass(chunk, biomeType, context, configuredPass.config);
-                    
-                } catch (Exception e) {
-                    Terradyne.LOGGER.error("Error applying pass {} to chunk {}: {}",
-                            configuredPass.pass.getPassName(),
-                            chunkPos,
-                            e.getMessage());
-                    e.printStackTrace();
-                }
-            }
+//            // Create context
+//            OctaveContext context = new OctaveContext(
+//                    planetModel,
+//                    biomeType,
+//                    masterNoiseProvider,
+//                    64.0 // Base height
+//            );
+//
+//            // Get configured passes for this biome
+//            List<PassRegistry.ConfiguredPass> passes = PassRegistry.getConfiguredPassesForBiome(biomeType);
+//
+//            if (passes.isEmpty()) {
+//                Terradyne.LOGGER.warn("No passes configured for biome {} - using fallback", biomeType.getName());
+//                generateFallbackTerrain(chunk);
+//                return;
+//            }
+//
+//            // Apply each pass in order
+//            for (PassRegistry.ConfiguredPass configuredPass : passes) {
+//                try {
+//                    configuredPass.pass.applyPass(chunk, biomeType, context, configuredPass.config);
+//
+//                } catch (Exception e) {
+//                    Terradyne.LOGGER.error("Error applying pass {} to chunk {}: {}",
+//                            configuredPass.pass.getPassName(),
+//                            chunkPos,
+//                            e.getMessage());
+//                    e.printStackTrace();
+//                }
+//            }
             
         } catch (Exception e) {
             Terradyne.LOGGER.error("Critical error in terrain generation for chunk {}: {}",
@@ -140,20 +137,20 @@ public class UniversalChunkGenerator extends ChunkGenerator {
     /**
      * Get biome type at world coordinates
      */
-    private IBiomeType getBiomeTypeAt(int worldX, int worldZ) {
-        try {
-            if (biomeSource instanceof PhysicsBiomeSource physicsBiomeSource) {
-                return physicsBiomeSource.getBiomeTypeAt(worldX, worldZ);
-            }
-            
-            // Fallback
-            return net.starlight.terradyne.planet.biome.PhysicsBiomeType.TECTONIC_TEST;
-            
-        } catch (Exception e) {
-            Terradyne.LOGGER.warn("Error getting biome type at {},{}: {}", worldX, worldZ, e.getMessage());
-            return net.starlight.terradyne.planet.biome.PhysicsBiomeType.TECTONIC_TEST;
-        }
-    }
+//    private IBiomeType getBiomeTypeAt(int worldX, int worldZ) {
+//        try {
+//            if (biomeSource instanceof PhysicsBiomeSource physicsBiomeSource) {
+//                return physicsBiomeSource.getBiomeTypeAt(worldX, worldZ);
+//            }
+//
+//            // Fallback
+////            return net.starlight.terradyne.planet.biome.PhysicsBiomeType.TECTONIC_TEST;
+//
+//        } catch (Exception e) {
+//            Terradyne.LOGGER.warn("Error getting biome type at {},{}: {}", worldX, worldZ, e.getMessage());
+////            return net.starlight.terradyne.planet.biome.PhysicsBiomeType.TECTONIC_TEST;
+//        }
+//    }
     
     /**
      * Fallback terrain generation

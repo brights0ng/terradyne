@@ -1,8 +1,6 @@
 package net.starlight.terradyne.planet.biome;
 
 import net.starlight.terradyne.planet.PlanetType;
-import net.starlight.terradyne.planet.terrain.octave.OctaveConfiguration;
-import net.starlight.terradyne.planet.terrain.pass.PassConfiguration;
 import java.util.List;
 
 /**
@@ -26,14 +24,9 @@ public interface IBiomeType {
      * Get the generation passes this biome uses
      * Passes are applied in priority order
      */
-    List<PassConfiguration> getGenerationPasses();
     
     /**
      * Legacy: Get octave configurations
      * Will be removed once we fully transition to passes
      */
-    @Deprecated
-    default List<OctaveConfiguration> getOctaveConfigurations() {
-        return List.of();
-    }
 }
