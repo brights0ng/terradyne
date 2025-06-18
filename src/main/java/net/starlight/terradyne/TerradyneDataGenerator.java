@@ -2,34 +2,23 @@ package net.starlight.terradyne;
 
 import net.fabricmc.fabric.api.datagen.v1.DataGeneratorEntrypoint;
 import net.fabricmc.fabric.api.datagen.v1.FabricDataGenerator;
-import net.minecraft.registry.RegistryBuilder;
-import net.minecraft.registry.RegistryKeys;
-import net.starlight.terradyne.datagen.BiomeDataProvider;
+import net.starlight.terradyne.datagen.DimensionTypeProvider;
 
 /**
- * Main data generator entry point for Terradyne mod
+ * Data generation for Terradyne mod.
+ * Handles registration of dimension types and other registry content.
  */
 public class TerradyneDataGenerator implements DataGeneratorEntrypoint {
 
-	@Override
-	public void onInitializeDataGenerator(FabricDataGenerator fabricDataGenerator) {
-		FabricDataGenerator.Pack pack = fabricDataGenerator.createPack();
+    @Override
+    public void onInitializeDataGenerator(FabricDataGenerator fabricDataGenerator) {
+        System.out.println("Initializing Terradyne data generation...");
 
-		// Register biome data provider
-		pack.addProvider(BiomeDataProvider::new);
+        FabricDataGenerator.Pack pack = fabricDataGenerator.createPack();
 
-		// Future data providers can be added here:
-		// pack.addProvider(RecipeDataProvider::new);
-		// pack.addProvider(LootTableDataProvider::new);
+        // Add our dimension type provider
+        pack.addProvider(DimensionTypeProvider::new);
 
-		Terradyne.LOGGER.info("✅ Data generation providers registered");
-	}
-
-	@Override
-	public void buildRegistry(RegistryBuilder registryBuilder) {
-		// Register biomes for data generation
-		registryBuilder.addRegistry(RegistryKeys.BIOME, bootstrap -> {
-			// Biome registration happens in BiomeDataProvider
-		});
-	}
+        System.out.println("Added Terradyne dimension type provider");
+    }
 }

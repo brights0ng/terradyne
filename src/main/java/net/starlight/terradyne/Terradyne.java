@@ -1,58 +1,81 @@
+// TerradyneMod.java
 package net.starlight.terradyne;
 
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
-import net.starlight.terradyne.util.CommandRegistry;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
+import net.minecraft.server.MinecraftServer;
+
+import net.starlight.terradyne.planet.world.PlanetDimensionManager;
+import net.starlight.terradyne.commands.PlanetCommands;
 
 /**
- * Main mod class for Terradyne
- * Physics-based planetary generation
+ * Main mod initialization class for Terradyne.
+ * Handles registration of commands and system initialization.
+ * Dimension types are registered through data generation.
  */
 public class Terradyne implements ModInitializer {
-    
+
     public static final String MOD_ID = "terradyne";
-    public static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
-    
+
     @Override
     public void onInitialize() {
-        LOGGER.info("🚀 Initializing Terradyne Physics Engine...");
-        
-        // Initialize core systems
-        initializeTerrainSystem();
+        System.out.println("Initializing Terradyne - Realistic Planet Generation");
+
+        // Initialize dimension management
+        PlanetDimensionManager.initialize();
+
+        // Register commands
         registerCommands();
-        
-        LOGGER.info("✅ Terradyne initialized successfully!");
-        logSystemStatus();
+
+        // Register server lifecycle events
+        registerServerEvents();
+
+        System.out.println("Terradyne initialization complete!");
+        System.out.println("Note: Dimension types must be registered through data generation");
     }
-    
-    private void initializeTerrainSystem() {
-        try {
-            // Initialize registries
-            LOGGER.info("✓ Generation systems initialized");
-            
-        } catch (Exception e) {
-            LOGGER.error("❌ Failed to initialize terrain system!", e);
-            throw new RuntimeException("Critical terrain system failure", e);
-        }
-    }
-    
+
+    /**
+     * Register planet management commands
+     */
     private void registerCommands() {
         CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) -> {
-            CommandRegistry.init(dispatcher);
+            PlanetCommands.register(dispatcher);
         });
-        LOGGER.info("✓ Commands registered");
+
+        System.out.println("Registered Terradyne commands");
     }
-    
-    private void logSystemStatus() {
-        LOGGER.info("=== PHYSICS ENGINE STATUS ===");
-        LOGGER.info("• Generation: Physics-based planetary simulation");
-        LOGGER.info("• Tectonics: Voronoi plate system");
-        LOGGER.info("• Terrain: Pass-based generation");
-        LOGGER.info("• Biomes: Emergent from physical conditions");
-        LOGGER.info("");
-        LOGGER.info("🎮 Use '/terradyne create <n> <preset>' to create planets");
-        LOGGER.info("🔬 Available presets: test, earth, mars, venus");
+
+    /**
+     * Register server lifecycle events
+     */
+    private void registerServerEvents() {
+        ServerLifecycleEvents.SERVER_STARTED.register(this::onServerStarted);
+        ServerLifecycleEvents.SERVER_STOPPING.register(this::onServerStopping);
+    }
+
+    /**
+     * Called when server starts - good place for additional initialization
+     */
+    private void onServerStarted(MinecraftServer server) {
+        System.out.println("Terradyne: Server started, planet system ready");
+
+        // Verify our dimension type was registered through data generation
+        boolean dimensionTypeExists = server.getRegistryManager()
+                .get(net.minecraft.registry.RegistryKeys.DIMENSION_TYPE)
+                .containsId(new net.minecraft.util.Identifier("terradyne", "planet"));
+
+        if (dimensionTypeExists) {
+            System.out.println("✓ Planet dimension type successfully registered");
+        } else {
+            System.err.println("✗ Planet dimension type not found - check data generation");
+        }
+    }
+
+    /**
+     * Called when server stops - cleanup
+     */
+    private void onServerStopping(MinecraftServer server) {
+        System.out.println("Terradyne: Server stopping, cleaning up planet systems");
     }
 }

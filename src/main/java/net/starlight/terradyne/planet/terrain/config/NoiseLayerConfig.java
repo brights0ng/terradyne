@@ -1,459 +1,349 @@
+// NoiseLayerConfig.java
 package net.starlight.terradyne.planet.terrain.config;
 
-import net.starlight.terradyne.planet.terrain.math.TerrainMathUtils;
-
 /**
- * Configuration for individual noise layers in the unified terrain system
- * Manages frequency relationships, amplitude scaling, and octave settings
- * Ensures coordinated noise generation across all scales without interference patterns
+ * Configuration for individual noise layers in the unified terrain generation system.
+ * Each layer represents a different scale of terrain features, from continental-scale
+ * down to fine surface detail.
  */
 public class NoiseLayerConfig {
     
-    // === NOISE LAYER TYPES ===
-    public enum NoiseLayerType {
-        CONTINENTAL("Continental", 0.00001, 40.0),      // Massive continent-scale features
-        REGIONAL("Regional", 0.0001, 20.0),             // Large regional variations
-        LOCAL("Local", 0.001, 10.0),                    // Local terrain features
-        DETAIL("Detail", 0.01, 5.0),                    // Surface detail and texture
-        EROSION("Erosion", 0.005, 8.0),                 // Erosion patterns
-        RIDGE("Ridge", 0.002, 15.0),                    // Mountain ridges and valleys
-        TURBULENCE("Turbulence", 0.02, 3.0);            // Chaotic fine details
-        
-        private final String displayName;
-        private final double defaultFrequency;
-        private final double defaultAmplitude;
-        
-        NoiseLayerType(String displayName, double defaultFrequency, double defaultAmplitude) {
-            this.displayName = displayName;
-            this.defaultFrequency = defaultFrequency;
-            this.defaultAmplitude = defaultAmplitude;
-        }
-        
-        public String getDisplayName() { return displayName; }
-        public double getDefaultFrequency() { return defaultFrequency; }
-        public double getDefaultAmplitude() { return defaultAmplitude; }
-    }
-    
-    // === NOISE TRANSFORMATION TYPES ===
-    public enum NoiseTransform {
-        NORMAL,         // Standard noise output
-        RIDGE,          // Absolute value for ridges
-        BILLOW,         // Squared for puffy features
-        TURBULENCE,     // Absolute with multiple octaves
-        TERRACE,        // Stepped for mesa-like terrain
-        SMOOTH_MIN,     // Valley-like blending
-        SMOOTH_MAX      // Mountain-like blending
-    }
-    
-    // Core layer properties
-    private final NoiseLayerType layerType;
-    private final double baseFrequency;
-    private final double baseAmplitude;
+    private final LayerType layerType;
+    private final boolean enabled;
+    private final double frequency;
+    private final double amplitude;
+    private final double warpStrength;
+    private final BlendMode blendMode;
+    private final ShapeMode shapeMode;
+    private final double blendWeight;
     private final int octaves;
     private final double persistence;
     private final double lacunarity;
-    private final NoiseTransform transform;
-    
-    // Advanced properties
-    private final double frequencyMultiplier;
-    private final double amplitudeMultiplier;
-    private final boolean enableNormalization;
-    private final double noiseOffset;
-    private final double noiseScale;
-    
-    // Interaction properties
-    private final double blendWeight;
-    private final double influenceRadius;
-    private final boolean enableSmoothing;
-    private final double smoothingRadius;
-    
-    // Performance properties
-    private final boolean enableCaching;
-    private final int cacheResolution;
-    private final boolean useFastMath;
     
     private NoiseLayerConfig(Builder builder) {
         this.layerType = builder.layerType;
-        this.baseFrequency = builder.baseFrequency;
-        this.baseAmplitude = builder.baseAmplitude;
+        this.enabled = builder.enabled;
+        this.frequency = builder.frequency;
+        this.amplitude = builder.amplitude;
+        this.warpStrength = builder.warpStrength;
+        this.blendMode = builder.blendMode;
+        this.shapeMode = builder.shapeMode;
+        this.blendWeight = builder.blendWeight;
         this.octaves = builder.octaves;
         this.persistence = builder.persistence;
         this.lacunarity = builder.lacunarity;
-        this.transform = builder.transform;
-        
-        this.frequencyMultiplier = builder.frequencyMultiplier;
-        this.amplitudeMultiplier = builder.amplitudeMultiplier;
-        this.enableNormalization = builder.enableNormalization;
-        this.noiseOffset = builder.noiseOffset;
-        this.noiseScale = builder.noiseScale;
-        
-        this.blendWeight = builder.blendWeight;
-        this.influenceRadius = builder.influenceRadius;
-        this.enableSmoothing = builder.enableSmoothing;
-        this.smoothingRadius = builder.smoothingRadius;
-        
-        this.enableCaching = builder.enableCaching;
-        this.cacheResolution = builder.cacheResolution;
-        this.useFastMath = builder.useFastMath;
     }
     
-    // === FACTORY METHODS ===
-    
-    /**
-     * Create default configuration for a specific layer type
-     */
-    public static NoiseLayerConfig createDefault(NoiseLayerType layerType) {
-        return new Builder(layerType).build();
-    }
-    
-    /**
-     * Create continental noise configuration
-     */
-    public static NoiseLayerConfig createContinental(double scale) {
-        return new Builder(NoiseLayerType.CONTINENTAL)
-                .withAmplitudeMultiplier(scale / 40.0)
-                .withOctaves(5)
-                .withPersistence(0.6)
-                .withLacunarity(TerrainMathUtils.GOLDEN_RATIO)
-                .withNormalization(true)
-                .withCaching(true, 4)
-                .build();
-    }
-    
-    /**
-     * Create regional variation configuration
-     */
-    public static NoiseLayerConfig createRegional(double intensity) {
-        return new Builder(NoiseLayerType.REGIONAL)
-                .withAmplitudeMultiplier(intensity)
-                .withOctaves(4)
-                .withPersistence(0.5)
-                .withLacunarity(2.2)
-                .withBlendWeight(0.6)
-                .build();
-    }
-    
-    /**
-     * Create local terrain configuration
-     */
-    public static NoiseLayerConfig createLocal(double roughness) {
-        return new Builder(NoiseLayerType.LOCAL)
-                .withAmplitudeMultiplier(roughness)
-                .withOctaves(3)
-                .withPersistence(0.4)
-                .withTransform(NoiseTransform.BILLOW)
-                .withSmoothing(true, 50.0)
-                .build();
-    }
-    
-    /**
-     * Create detail noise configuration
-     */
-    public static NoiseLayerConfig createDetail(double intensity) {
-        return new Builder(NoiseLayerType.DETAIL)
-                .withAmplitudeMultiplier(intensity)
-                .withOctaves(2)
-                .withPersistence(0.3)
-                .withBlendWeight(0.15)
-                .build();
-    }
-    
-    /**
-     * Create ridge noise for mountains
-     */
-    public static NoiseLayerConfig createRidge(double strength) {
-        return new Builder(NoiseLayerType.RIDGE)
-                .withAmplitudeMultiplier(strength)
-                .withOctaves(3)
-                .withPersistence(0.5)
-                .withTransform(NoiseTransform.RIDGE)
-                .withBlendWeight(0.8)
-                .build();
-    }
-    
-    /**
-     * Create erosion pattern configuration
-     */
-    public static NoiseLayerConfig createErosion(double intensity) {
-        return new Builder(NoiseLayerType.EROSION)
-                .withAmplitudeMultiplier(intensity)
-                .withOctaves(2)
-                .withPersistence(0.3)
-                .withTransform(NoiseTransform.TURBULENCE)
-                .withSmoothing(true, 100.0)
-                .build();
-    }
-    
-    // === GETTERS ===
-    
-    public NoiseLayerType getLayerType() { return layerType; }
-    public double getBaseFrequency() { return baseFrequency; }
-    public double getBaseAmplitude() { return baseAmplitude; }
+    // Getters
+    public LayerType getLayerType() { return layerType; }
+    public boolean isEnabled() { return enabled; }
+    public double getFrequency() { return frequency; }
+    public double getAmplitude() { return amplitude; }
+    public double getWarpStrength() { return warpStrength; }
+    public BlendMode getBlendMode() { return blendMode; }
+    public ShapeMode getShapeMode() { return shapeMode; }
+    public double getBlendWeight() { return blendWeight; }
     public int getOctaves() { return octaves; }
     public double getPersistence() { return persistence; }
     public double getLacunarity() { return lacunarity; }
-    public NoiseTransform getTransform() { return transform; }
-    
-    public double getFrequencyMultiplier() { return frequencyMultiplier; }
-    public double getAmplitudeMultiplier() { return amplitudeMultiplier; }
-    public boolean isEnableNormalization() { return enableNormalization; }
-    public double getNoiseOffset() { return noiseOffset; }
-    public double getNoiseScale() { return noiseScale; }
-    
-    public double getBlendWeight() { return blendWeight; }
-    public double getInfluenceRadius() { return influenceRadius; }
-    public boolean isEnableSmoothing() { return enableSmoothing; }
-    public double getSmoothingRadius() { return smoothingRadius; }
-    
-    public boolean isEnableCaching() { return enableCaching; }
-    public int getCacheResolution() { return cacheResolution; }
-    public boolean isUseFastMath() { return useFastMath; }
-    
-    // === CALCULATED PROPERTIES ===
     
     /**
-     * Get effective frequency for a specific octave
+     * Types of terrain layers, from largest to smallest scale
      */
-    public double getOctaveFrequency(int octave) {
-        return TerrainMathUtils.getOctaveFrequency(getEffectiveFrequency(), octave);
+    public enum LayerType {
+        CONTINENTAL,    // Major landmass shape (500-1000 block frequency)
+        MOUNTAIN_RANGES, // Large elevation features (200-400 block frequency)
+        HILLS,          // Medium terrain variation (50-100 block frequency)
+        VALLEYS,        // Local terrain carving (20-40 block frequency)
+        SURFACE_DETAIL  // Fine surface roughness (5-10 block frequency)
     }
     
     /**
-     * Get effective amplitude for a specific octave
+     * How this layer blends with the previous layers
      */
-    public double getOctaveAmplitude(int octave) {
-        return TerrainMathUtils.getOctaveAmplitude(getEffectiveAmplitude(), octave, persistence);
+    public enum BlendMode {
+        DOMAIN_WARP,    // Use this layer to warp coordinates for next layer (primary mode)
+        WEIGHTED,       // Linear blend with weight
+        OVERLAY,        // Complex overlay blend for natural combinations
+        MULTIPLICATIVE, // Multiply for masking effects
+        POWER,          // Power blend for sharp features
+        REPLACE         // Completely replace previous value (rarely used)
     }
     
     /**
-     * Get the effective frequency (base frequency × multiplier)
+     * How to shape the raw noise values
      */
-    public double getEffectiveFrequency() {
-        return baseFrequency * frequencyMultiplier;
+    public enum ShapeMode {
+        NORMAL,         // Use raw noise values
+        RIDGED,         // Create sharp ridges (good for mountains)
+        BILLOWY,        // Create soft, puffy terrain (good for hills)
+        TERRACE,        // Create stepped terrain (sedimentary layers)
+        PLATEAU,        // Flatten high areas (mesa effect)
+        EXPONENTIAL     // Emphasize peaks with exponential curve
     }
     
     /**
-     * Get the effective amplitude (base amplitude × multiplier)
+     * Create default layer configurations for different planet types
      */
-    public double getEffectiveAmplitude() {
-        return baseAmplitude * amplitudeMultiplier;
-    }
-    
-    /**
-     * Get the maximum possible amplitude for this layer (for normalization)
-     */
-    public double getMaxAmplitude() {
-        if (enableNormalization) {
-            return TerrainMathUtils.getTotalAmplitude(octaves, persistence) * getEffectiveAmplitude();
+    public static class DefaultConfigs {
+        
+        /**
+         * Create default continental layer configuration
+         */
+        public static NoiseLayerConfig continental() {
+            return new Builder(LayerType.CONTINENTAL)
+                .frequency(750.0)           // Large features
+                .amplitude(1.0)             // Full amplitude
+                .warpStrength(50.0)         // Moderate warping
+                .blendMode(BlendMode.DOMAIN_WARP)
+                .shapeMode(ShapeMode.NORMAL)
+                .blendWeight(1.0)
+                .octaves(3)
+                .persistence(0.5)
+                .lacunarity(2.0)
+                .build();
         }
-        return getEffectiveAmplitude();
-    }
-    
-    /**
-     * Apply noise transformation to a raw noise value
-     */
-    public double applyTransform(double noiseValue) {
-        double transformed = switch (transform) {
-            case NORMAL -> noiseValue;
-            case RIDGE -> TerrainMathUtils.ridgeTransform(noiseValue);
-            case BILLOW -> TerrainMathUtils.billowTransform(noiseValue);
-            case TURBULENCE -> TerrainMathUtils.turbulence(noiseValue, 1.0);
-            case TERRACE -> TerrainMathUtils.terraceTransform(noiseValue, 8);
-            case SMOOTH_MIN -> noiseValue; // Applied externally with another value
-            case SMOOTH_MAX -> noiseValue; // Applied externally with another value
-        };
         
-        // Apply offset and scaling
-        return (transformed + noiseOffset) * noiseScale;
-    }
-    
-    /**
-     * Check if this layer should be cached at the given resolution
-     */
-    public boolean shouldCache(int targetResolution) {
-        return enableCaching && (cacheResolution >= targetResolution);
-    }
-    
-    /**
-     * Get the weight for blending this layer with others
-     */
-    public double getEffectiveBlendWeight(double distance) {
-        if (influenceRadius <= 0) return blendWeight;
+        /**
+         * Create default mountain range layer configuration
+         */
+        public static NoiseLayerConfig mountainRanges() {
+            return new Builder(LayerType.MOUNTAIN_RANGES)
+                .frequency(300.0)           // Medium-large features
+                .amplitude(0.8)             // Strong contribution
+                .warpStrength(30.0)         // Strong warping for dramatic features
+                .blendMode(BlendMode.DOMAIN_WARP)
+                .shapeMode(ShapeMode.RIDGED) // Sharp mountain ridges
+                .blendWeight(0.7)
+                .octaves(4)
+                .persistence(0.6)
+                .lacunarity(2.1)
+                .build();
+        }
         
-        double falloff = TerrainMathUtils.exponentialFalloff(distance, influenceRadius, 1.0);
-        return blendWeight * falloff;
+        /**
+         * Create default hills layer configuration
+         */
+        public static NoiseLayerConfig hills() {
+            return new Builder(LayerType.HILLS)
+                .frequency(75.0)            // Medium features
+                .amplitude(0.5)             // Moderate contribution
+                .warpStrength(15.0)         // Gentle warping
+                .blendMode(BlendMode.OVERLAY)
+                .shapeMode(ShapeMode.BILLOWY) // Soft, rolling hills
+                .blendWeight(0.5)
+                .octaves(3)
+                .persistence(0.5)
+                .lacunarity(2.0)
+                .build();
+        }
+        
+        /**
+         * Create default valleys layer configuration
+         */
+        public static NoiseLayerConfig valleys() {
+            return new Builder(LayerType.VALLEYS)
+                .frequency(30.0)            // Smaller features
+                .amplitude(0.4)             // Moderate contribution
+                .warpStrength(10.0)         // Subtle warping
+                .blendMode(BlendMode.MULTIPLICATIVE) // Carve into existing terrain
+                .shapeMode(ShapeMode.NORMAL)
+                .blendWeight(0.6)
+                .octaves(2)
+                .persistence(0.4)
+                .lacunarity(2.2)
+                .build();
+        }
+        
+        /**
+         * Create default surface detail layer configuration
+         */
+        public static NoiseLayerConfig surfaceDetail() {
+            return new Builder(LayerType.SURFACE_DETAIL)
+                .frequency(7.5)             // Fine details
+                .amplitude(0.2)             // Small contribution
+                .warpStrength(2.0)          // Minimal warping
+                .blendMode(BlendMode.WEIGHTED)
+                .shapeMode(ShapeMode.NORMAL)
+                .blendWeight(0.3)
+                .octaves(2)
+                .persistence(0.3)
+                .lacunarity(2.5)
+                .build();
+        }
+        
+        /**
+         * Create a complete set of default layers
+         */
+        public static NoiseLayerConfig[] createDefaultLayerSet() {
+            return new NoiseLayerConfig[] {
+                continental(),
+                mountainRanges(),
+                hills(),
+                valleys(),
+                surfaceDetail()
+            };
+        }
     }
-    
-    // === UTILITY METHODS ===
     
     /**
-     * Create a coordinate-scaled version of this configuration
+     * Builder for creating customized layer configurations
      */
-    public NoiseLayerConfig withCoordinateScale(double scale) {
-        return new Builder(this)
-                .withFrequencyMultiplier(frequencyMultiplier / scale)
-                .build();
-    }
-    
-    /**
-     * Create an intensity-scaled version of this configuration
-     */
-    public NoiseLayerConfig withIntensityScale(double scale) {
-        return new Builder(this)
-                .withAmplitudeMultiplier(amplitudeMultiplier * scale)
-                .build();
-    }
-    
-    // === BUILDER PATTERN ===
-    
     public static class Builder {
-        private final NoiseLayerType layerType;
-        private double baseFrequency;
-        private double baseAmplitude;
+        private final LayerType layerType;
+        private boolean enabled = true;
+        private double frequency = 100.0;
+        private double amplitude = 0.5;
+        private double warpStrength = 10.0;
+        private BlendMode blendMode = BlendMode.DOMAIN_WARP;
+        private ShapeMode shapeMode = ShapeMode.NORMAL;
+        private double blendWeight = 0.5;
         private int octaves = 3;
         private double persistence = 0.5;
         private double lacunarity = 2.0;
-        private NoiseTransform transform = NoiseTransform.NORMAL;
         
-        private double frequencyMultiplier = 1.0;
-        private double amplitudeMultiplier = 1.0;
-        private boolean enableNormalization = true;
-        private double noiseOffset = 0.0;
-        private double noiseScale = 1.0;
-        
-        private double blendWeight = 1.0;
-        private double influenceRadius = 0.0;
-        private boolean enableSmoothing = false;
-        private double smoothingRadius = 100.0;
-        
-        private boolean enableCaching = false;
-        private int cacheResolution = 1;
-        private boolean useFastMath = false;
-        
-        public Builder(NoiseLayerType layerType) {
+        public Builder(LayerType layerType) {
             this.layerType = layerType;
-            this.baseFrequency = layerType.getDefaultFrequency();
-            this.baseAmplitude = layerType.getDefaultAmplitude();
         }
         
-        // Copy constructor
-        public Builder(NoiseLayerConfig config) {
-            this.layerType = config.layerType;
-            this.baseFrequency = config.baseFrequency;
-            this.baseAmplitude = config.baseAmplitude;
-            this.octaves = config.octaves;
-            this.persistence = config.persistence;
-            this.lacunarity = config.lacunarity;
-            this.transform = config.transform;
-            
-            this.frequencyMultiplier = config.frequencyMultiplier;
-            this.amplitudeMultiplier = config.amplitudeMultiplier;
-            this.enableNormalization = config.enableNormalization;
-            this.noiseOffset = config.noiseOffset;
-            this.noiseScale = config.noiseScale;
-            
-            this.blendWeight = config.blendWeight;
-            this.influenceRadius = config.influenceRadius;
-            this.enableSmoothing = config.enableSmoothing;
-            this.smoothingRadius = config.smoothingRadius;
-            
-            this.enableCaching = config.enableCaching;
-            this.cacheResolution = config.cacheResolution;
-            this.useFastMath = config.useFastMath;
+        public Builder enabled(boolean enabled) {
+            this.enabled = enabled;
+            return this;
         }
         
-        // Core noise properties
-        public Builder withFrequency(double frequency) { this.baseFrequency = frequency; return this; }
-        public Builder withAmplitude(double amplitude) { this.baseAmplitude = amplitude; return this; }
-        public Builder withOctaves(int octaves) { this.octaves = Math.max(1, octaves); return this; }
-        public Builder withPersistence(double persistence) { this.persistence = TerrainMathUtils.clamp01(persistence); return this; }
-        public Builder withLacunarity(double lacunarity) { this.lacunarity = Math.max(1.0, lacunarity); return this; }
-        public Builder withTransform(NoiseTransform transform) { this.transform = transform; return this; }
-        
-        // Multipliers
-        public Builder withFrequencyMultiplier(double multiplier) { this.frequencyMultiplier = multiplier; return this; }
-        public Builder withAmplitudeMultiplier(double multiplier) { this.amplitudeMultiplier = multiplier; return this; }
-        
-        // Normalization and scaling
-        public Builder withNormalization(boolean enable) { this.enableNormalization = enable; return this; }
-        public Builder withOffset(double offset) { this.noiseOffset = offset; return this; }
-        public Builder withScale(double scale) { this.noiseScale = scale; return this; }
-        
-        // Blending
-        public Builder withBlendWeight(double weight) { this.blendWeight = TerrainMathUtils.clamp01(weight); return this; }
-        public Builder withInfluenceRadius(double radius) { this.influenceRadius = Math.max(0, radius); return this; }
-        
-        // Smoothing
-        public Builder withSmoothing(boolean enable, double radius) { 
-            this.enableSmoothing = enable; 
-            this.smoothingRadius = radius; 
-            return this; 
+        public Builder frequency(double frequency) {
+            this.frequency = frequency;
+            return this;
         }
         
-        // Performance
-        public Builder withCaching(boolean enable, int resolution) { 
-            this.enableCaching = enable; 
-            this.cacheResolution = Math.max(1, resolution); 
-            return this; 
+        public Builder amplitude(double amplitude) {
+            this.amplitude = amplitude;
+            return this;
         }
-        public Builder withFastMath(boolean enable) { this.useFastMath = enable; return this; }
+        
+        public Builder warpStrength(double warpStrength) {
+            this.warpStrength = warpStrength;
+            return this;
+        }
+        
+        public Builder blendMode(BlendMode blendMode) {
+            this.blendMode = blendMode;
+            return this;
+        }
+        
+        public Builder shapeMode(ShapeMode shapeMode) {
+            this.shapeMode = shapeMode;
+            return this;
+        }
+        
+        public Builder blendWeight(double blendWeight) {
+            this.blendWeight = blendWeight;
+            return this;
+        }
+        
+        public Builder octaves(int octaves) {
+            this.octaves = octaves;
+            return this;
+        }
+        
+        public Builder persistence(double persistence) {
+            this.persistence = persistence;
+            return this;
+        }
+        
+        public Builder lacunarity(double lacunarity) {
+            this.lacunarity = lacunarity;
+            return this;
+        }
         
         public NoiseLayerConfig build() {
             return new NoiseLayerConfig(this);
         }
     }
     
-    // === UTILITY CLASS FOR COORDINATING MULTIPLE LAYERS ===
+    /**
+     * Modify this layer config based on planet parameters
+     */
+    public NoiseLayerConfig adjustForPlanet(int circumference, int crustalThickness, 
+                                           double tectonicActivity, double waterErosion) {
+        Builder builder = new Builder(this.layerType)
+            .enabled(this.enabled)
+            .blendMode(this.blendMode)
+            .shapeMode(this.shapeMode)
+            .blendWeight(this.blendWeight)
+            .octaves(this.octaves)
+            .persistence(this.persistence)
+            .lacunarity(this.lacunarity);
+        
+        // Adjust frequency based on planet size
+        double sizeScale = circumference / 40000.0; // Relative to Earth-like
+        double adjustedFrequency = this.frequency * sizeScale;
+        
+        // Adjust amplitude based on crustal thickness
+        double thicknessScale = crustalThickness / 300.0; // Relative to default
+        double adjustedAmplitude = this.amplitude * thicknessScale;
+        
+        // Adjust warp strength based on tectonic activity
+        double tectonicScale = 0.5 + (tectonicActivity * 0.5); // 0.5 to 1.0 range
+        double adjustedWarpStrength = this.warpStrength * tectonicScale;
+        
+        // Apply layer-specific adjustments
+        switch (this.layerType) {
+            case CONTINENTAL:
+                // Continental features scale most with planet size
+                adjustedFrequency *= 1.2;
+                break;
+            case MOUNTAIN_RANGES:
+                // Mountains are most affected by tectonics
+                adjustedAmplitude *= (1.0 + tectonicActivity * 0.5);
+                adjustedWarpStrength *= (1.0 + tectonicActivity * 0.3);
+                break;
+            case HILLS:
+                // Hills are moderately affected by erosion
+                adjustedAmplitude *= (1.0 - waterErosion * 0.2);
+                break;
+            case VALLEYS:
+                // Valleys are carved by water erosion
+                adjustedAmplitude *= (1.0 + waterErosion * 0.4);
+                break;
+            case SURFACE_DETAIL:
+                // Surface detail is most affected by erosion
+                adjustedAmplitude *= (1.0 - waterErosion * 0.3);
+                adjustedWarpStrength *= (1.0 - waterErosion * 0.4);
+                break;
+        }
+        
+        return builder
+            .frequency(adjustedFrequency)
+            .amplitude(adjustedAmplitude)
+            .warpStrength(adjustedWarpStrength)
+            .build();
+    }
     
     /**
-     * Utility class for managing relationships between noise layers
+     * Debug string representation
      */
-    public static class LayerCoordinator {
-        
-        /**
-         * Ensure frequency separation between layers to prevent interference
-         */
-        public static void preventInterference(NoiseLayerConfig... layers) {
-            for (int i = 0; i < layers.length - 1; i++) {
-                for (int j = i + 1; j < layers.length; j++) {
-                    double freq1 = layers[i].getEffectiveFrequency();
-                    double freq2 = layers[j].getEffectiveFrequency();
-                    
-                    // Ensure frequencies are separated by at least golden ratio
-                    double ratio = Math.max(freq1, freq2) / Math.min(freq1, freq2);
-                    if (ratio < TerrainMathUtils.GOLDEN_RATIO) {
-                        // Adjust the higher frequency layer
-                        if (freq1 > freq2) {
-                            layers[i] = layers[i].withCoordinateScale(1.0 / TerrainMathUtils.GOLDEN_RATIO);
-                        } else {
-                            layers[j] = layers[j].withCoordinateScale(1.0 / TerrainMathUtils.GOLDEN_RATIO);
-                        }
-                    }
-                }
-            }
-        }
-        
-        /**
-         * Normalize amplitude weights so they sum to 1.0
-         */
-        public static NoiseLayerConfig[] normalizeWeights(NoiseLayerConfig... layers) {
-            double totalWeight = 0.0;
-            for (NoiseLayerConfig layer : layers) {
-                totalWeight += layer.getBlendWeight();
-            }
-            
-            if (totalWeight > 0) {
-                NoiseLayerConfig[] normalized = new NoiseLayerConfig[layers.length];
-                for (int i = 0; i < layers.length; i++) {
-                    double normalizedWeight = layers[i].getBlendWeight() / totalWeight;
-                    normalized[i] = new Builder(layers[i])
-                            .withBlendWeight(normalizedWeight)
-                            .build();
-                }
-                return normalized;
-            }
-            
-            return layers;
-        }
+    @Override
+    public String toString() {
+        return String.format("%s: freq=%.1f, amp=%.2f, warp=%.1f, %s+%s", 
+            layerType, frequency, amplitude, warpStrength, blendMode, shapeMode);
+    }
+    
+    /**
+     * Create a disabled version of this layer
+     */
+    public NoiseLayerConfig disabled() {
+        return new Builder(this.layerType)
+            .enabled(false)
+            .frequency(this.frequency)
+            .amplitude(this.amplitude)
+            .warpStrength(this.warpStrength)
+            .blendMode(this.blendMode)
+            .shapeMode(this.shapeMode)
+            .blendWeight(this.blendWeight)
+            .octaves(this.octaves)
+            .persistence(this.persistence)
+            .lacunarity(this.lacunarity)
+            .build();
     }
 }
