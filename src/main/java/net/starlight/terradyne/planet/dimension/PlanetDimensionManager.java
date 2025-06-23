@@ -20,12 +20,6 @@ import net.minecraft.world.level.storage.LevelStorage;
 import net.minecraft.util.math.random.RandomSequencesState;
 import net.minecraft.server.WorldGenerationProgressListener;
 import net.starlight.terradyne.Terradyne;
-import net.starlight.terradyne.planet.PlanetType;
-import net.starlight.terradyne.planet.biome.DesertBiomeSource;
-import net.starlight.terradyne.planet.chunk.UniversalChunkGenerator;
-import net.starlight.terradyne.planet.model.DesertModel;
-import net.starlight.terradyne.planet.model.OceanicModel;
-import net.starlight.terradyne.planet.model.RockyModel;
 
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
@@ -36,99 +30,99 @@ public class PlanetDimensionManager {
     // Storage maps for all planet types
     private static final Map<String, RegistryKey<World>> PLANET_DIMENSIONS = new ConcurrentHashMap<>();
     private static final Map<String, ServerWorld> PLANET_WORLDS = new ConcurrentHashMap<>();
-    private static final Map<String, PlanetType> PLANET_TYPES = new ConcurrentHashMap<>();
-
-    // Type-specific model storage
-    private static final Map<String, DesertModel> DESERT_MODELS = new ConcurrentHashMap<>();
-    private static final Map<String, OceanicModel> OCEANIC_MODELS = new ConcurrentHashMap<>();
-    private static final Map<String, RockyModel> ROCKY_MODELS = new ConcurrentHashMap<>();
+//    private static final Map<String, PlanetType> PLANET_TYPES = new ConcurrentHashMap<>();
+//
+//    // Type-specific model storage
+//    private static final Map<String, DesertModel> DESERT_MODELS = new ConcurrentHashMap<>();
+//    private static final Map<String, OceanicModel> OCEANIC_MODELS = new ConcurrentHashMap<>();
+//    private static final Map<String, RockyModel> ROCKY_MODELS = new ConcurrentHashMap<>();
 
     // Updated createDesertPlanet method for PlanetDimensionManager.java
 // Replace the existing method with this cleaned-up version:
 
-    public static RegistryKey<World> createDesertPlanet(MinecraftServer server, DesertModel model) {
-        String planetName = model.getConfig().getPlanetName().toLowerCase().replace(" ", "_");
-
-        Terradyne.LOGGER.info("=== CREATING DESERT PLANET ===");
-        Terradyne.LOGGER.info("Planet: {}", planetName);
-        Terradyne.LOGGER.info("Temperature: {}°C", model.getConfig().getSurfaceTemperature());
-        Terradyne.LOGGER.info("Sand Density: {}%", model.getConfig().getSandDensity() * 100);
-
-        if (PLANET_DIMENSIONS.containsKey(planetName)) {
-            return PLANET_DIMENSIONS.get(planetName);
-        }
-
-        try {
-            Identifier dimensionId = new Identifier(Terradyne.MOD_ID, planetName);
-            RegistryKey<World> worldKey = RegistryKey.of(RegistryKeys.WORLD, dimensionId);
-
-            RegistryEntry<DimensionType> dimensionType = selectDimensionTypeForDesert(server, model);
-            BiomeSource biomeSource = createDesertBiomeSource(server, model);
-            UniversalChunkGenerator chunkGenerator = new UniversalChunkGenerator(model, biomeSource);
-
-            DimensionOptions dimensionOptions = new DimensionOptions(dimensionType, chunkGenerator);
-            ServerWorld serverWorld = createServerWorld(server, worldKey, dimensionOptions);
-
-            // Store planet data
-            PLANET_DIMENSIONS.put(planetName, worldKey);
-            PLANET_WORLDS.put(planetName, serverWorld);
-            PLANET_TYPES.put(planetName, model.getConfig().getType());
-            DESERT_MODELS.put(planetName, model);
-
-            Terradyne.LOGGER.info("✅ Desert planet '{}' created successfully", planetName);
-            logBiomeSourceStatus(biomeSource);
-
-            return worldKey;
-
-        } catch (Exception e) {
-            Terradyne.LOGGER.error("Failed to create desert planet: {}", planetName, e);
-            throw new RuntimeException("Desert planet creation failed: " + e.getMessage(), e);
-        }
-    }
-
-    // NEW METHOD: Create desert biome source (simplified)
-    private static BiomeSource createDesertBiomeSource(MinecraftServer server, DesertModel model) {
-        Terradyne.LOGGER.info("Creating desert biome source...");
-
-        DesertBiomeSource biomeSource = new DesertBiomeSource(model, server);
-
-        Terradyne.LOGGER.info("✅ Desert biome source created");
-        return biomeSource;
-    }
-
-    // NEW METHOD: Log biome source status
-    private static void logBiomeSourceStatus(BiomeSource biomeSource) {
-        if (biomeSource instanceof DesertBiomeSource desertBiomeSource) {
-            if (desertBiomeSource.isUsingCustomBiomes()) {
-                Terradyne.LOGGER.info("  ✓ Using custom biomes from data generation");
-            } else {
-                Terradyne.LOGGER.info("  ⚠ Using vanilla biomes with custom terrain");
-                Terradyne.LOGGER.info("    Run 'gradlew runDatagen' to generate custom biomes");
-            }
-            Terradyne.LOGGER.info("  Available terrain types: {}", desertBiomeSource.getAvailableTerrainTypes().size());
-        }
-    }
-
-    // UPDATED BIOME SOURCE CREATION for other planet types (simplified naming)
-    private static BiomeSource createOceanicBiomeSource(MinecraftServer server, OceanicModel model) {
-        Terradyne.LOGGER.info("Creating oceanic biome source (vanilla biomes)...");
-
-        Registry<Biome> biomeRegistry = server.getRegistryManager().get(RegistryKeys.BIOME);
-        RegistryEntry<Biome> oceanBiome = biomeRegistry.getEntry(BiomeKeys.OCEAN).orElseThrow();
-
-        return new FixedBiomeSource(oceanBiome);
-    }
-
-    private static BiomeSource createRockyBiomeSource(MinecraftServer server, RockyModel model) {
-        Terradyne.LOGGER.info("Creating rocky biome source (vanilla biomes)...");
-
-        Registry<Biome> biomeRegistry = server.getRegistryManager().get(RegistryKeys.BIOME);
-        RegistryKey<Biome> biomeKey = model.getConfig().getAtmosphericDensity() < 0.02f ?
-                BiomeKeys.END_BARRENS : BiomeKeys.BADLANDS;
-
-        RegistryEntry<Biome> biome = biomeRegistry.getEntry(biomeKey).orElseThrow();
-        return new FixedBiomeSource(biome);
-    }
+//    public static RegistryKey<World> createDesertPlanet(MinecraftServer server, DesertModel model) {
+//        String planetName = model.getConfig().getPlanetName().toLowerCase().replace(" ", "_");
+//
+//        Terradyne.LOGGER.info("=== CREATING DESERT PLANET ===");
+//        Terradyne.LOGGER.info("Planet: {}", planetName);
+//        Terradyne.LOGGER.info("Temperature: {}°C", model.getConfig().getSurfaceTemperature());
+//        Terradyne.LOGGER.info("Sand Density: {}%", model.getConfig().getSandDensity() * 100);
+//
+//        if (PLANET_DIMENSIONS.containsKey(planetName)) {
+//            return PLANET_DIMENSIONS.get(planetName);
+//        }
+//
+//        try {
+//            Identifier dimensionId = new Identifier(Terradyne.MOD_ID, planetName);
+//            RegistryKey<World> worldKey = RegistryKey.of(RegistryKeys.WORLD, dimensionId);
+//
+//            RegistryEntry<DimensionType> dimensionType = selectDimensionTypeForDesert(server, model);
+//            BiomeSource biomeSource = createDesertBiomeSource(server, model);
+//            UniversalChunkGenerator chunkGenerator = new UniversalChunkGenerator(model, biomeSource);
+//
+//            DimensionOptions dimensionOptions = new DimensionOptions(dimensionType, chunkGenerator);
+//            ServerWorld serverWorld = createServerWorld(server, worldKey, dimensionOptions);
+//
+//            // Store planet data
+//            PLANET_DIMENSIONS.put(planetName, worldKey);
+//            PLANET_WORLDS.put(planetName, serverWorld);
+//            PLANET_TYPES.put(planetName, model.getConfig().getType());
+//            DESERT_MODELS.put(planetName, model);
+//
+//            Terradyne.LOGGER.info("✅ Desert planet '{}' created successfully", planetName);
+//            logBiomeSourceStatus(biomeSource);
+//
+//            return worldKey;
+//
+//        } catch (Exception e) {
+//            Terradyne.LOGGER.error("Failed to create desert planet: {}", planetName, e);
+//            throw new RuntimeException("Desert planet creation failed: " + e.getMessage(), e);
+//        }
+//    }
+//
+//    // NEW METHOD: Create desert biome source (simplified)
+//    private static BiomeSource createDesertBiomeSource(MinecraftServer server, DesertModel model) {
+//        Terradyne.LOGGER.info("Creating desert biome source...");
+//
+//        DesertBiomeSource biomeSource = new DesertBiomeSource(model, server);
+//
+//        Terradyne.LOGGER.info("✅ Desert biome source created");
+//        return biomeSource;
+//    }
+//
+//    // NEW METHOD: Log biome source status
+//    private static void logBiomeSourceStatus(BiomeSource biomeSource) {
+//        if (biomeSource instanceof DesertBiomeSource desertBiomeSource) {
+//            if (desertBiomeSource.isUsingCustomBiomes()) {
+//                Terradyne.LOGGER.info("  ✓ Using custom biomes from data generation");
+//            } else {
+//                Terradyne.LOGGER.info("  ⚠ Using vanilla biomes with custom terrain");
+//                Terradyne.LOGGER.info("    Run 'gradlew runDatagen' to generate custom biomes");
+//            }
+//            Terradyne.LOGGER.info("  Available terrain types: {}", desertBiomeSource.getAvailableTerrainTypes().size());
+//        }
+//    }
+//
+//    // UPDATED BIOME SOURCE CREATION for other planet types (simplified naming)
+//    private static BiomeSource createOceanicBiomeSource(MinecraftServer server, OceanicModel model) {
+//        Terradyne.LOGGER.info("Creating oceanic biome source (vanilla biomes)...");
+//
+//        Registry<Biome> biomeRegistry = server.getRegistryManager().get(RegistryKeys.BIOME);
+//        RegistryEntry<Biome> oceanBiome = biomeRegistry.getEntry(BiomeKeys.OCEAN).orElseThrow();
+//
+//        return new FixedBiomeSource(oceanBiome);
+//    }
+//
+//    private static BiomeSource createRockyBiomeSource(MinecraftServer server, RockyModel model) {
+//        Terradyne.LOGGER.info("Creating rocky biome source (vanilla biomes)...");
+//
+//        Registry<Biome> biomeRegistry = server.getRegistryManager().get(RegistryKeys.BIOME);
+//        RegistryKey<Biome> biomeKey = model.getConfig().getAtmosphericDensity() < 0.02f ?
+//                BiomeKeys.END_BARRENS : BiomeKeys.BADLANDS;
+//
+//        RegistryEntry<Biome> biome = biomeRegistry.getEntry(biomeKey).orElseThrow();
+//        return new FixedBiomeSource(biome);
+//    }
 
     // TELEPORTATION
     public static void teleportToPlanet(ServerPlayerEntity player, String planetName) {
@@ -182,158 +176,158 @@ public class PlanetDimensionManager {
         return PLANET_DIMENSIONS.containsKey(normalizedName);
     }
 
-    public static PlanetType getPlanetType(String planetName) {
-        String normalizedName = planetName.toLowerCase().replace(" ", "_");
-        return PLANET_TYPES.get(normalizedName);
-    }
+//    public static PlanetType getPlanetType(String planetName) {
+//        String normalizedName = planetName.toLowerCase().replace(" ", "_");
+//        return PLANET_TYPES.get(normalizedName);
+//    }
+//
+//    public static String listPlanets() {
+//        if (PLANET_DIMENSIONS.isEmpty()) {
+//            return "No planets created yet";
+//        }
+//
+//        StringBuilder sb = new StringBuilder();
+//        for (String planetName : PLANET_DIMENSIONS.keySet()) {
+//            PlanetType type = PLANET_TYPES.get(planetName);
+//            sb.append(planetName).append(" (").append(type != null ? type.getDisplayName() : "Unknown").append("), ");
+//        }
+//
+//        if (sb.length() > 2) {
+//            sb.setLength(sb.length() - 2);
+//        }
+//
+//        return sb.toString();
+//    }
+//
+//    // MODEL GETTERS
+//    public static DesertModel getDesertModel(String planetName) {
+//        String normalizedName = planetName.toLowerCase().replace(" ", "_");
+//        return DESERT_MODELS.get(normalizedName);
+//    }
+//
+//    public static OceanicModel getOceanicModel(String planetName) {
+//        String normalizedName = planetName.toLowerCase().replace(" ", "_");
+//        return OCEANIC_MODELS.get(normalizedName);
+//    }
+//
+//    public static RockyModel getRockyModel(String planetName) {
+//        String normalizedName = planetName.toLowerCase().replace(" ", "_");
+//        return ROCKY_MODELS.get(normalizedName);
+//    }
 
-    public static String listPlanets() {
-        if (PLANET_DIMENSIONS.isEmpty()) {
-            return "No planets created yet";
-        }
 
-        StringBuilder sb = new StringBuilder();
-        for (String planetName : PLANET_DIMENSIONS.keySet()) {
-            PlanetType type = PLANET_TYPES.get(planetName);
-            sb.append(planetName).append(" (").append(type != null ? type.getDisplayName() : "Unknown").append("), ");
-        }
-
-        if (sb.length() > 2) {
-            sb.setLength(sb.length() - 2);
-        }
-
-        return sb.toString();
-    }
-
-    // MODEL GETTERS
-    public static DesertModel getDesertModel(String planetName) {
-        String normalizedName = planetName.toLowerCase().replace(" ", "_");
-        return DESERT_MODELS.get(normalizedName);
-    }
-
-    public static OceanicModel getOceanicModel(String planetName) {
-        String normalizedName = planetName.toLowerCase().replace(" ", "_");
-        return OCEANIC_MODELS.get(normalizedName);
-    }
-
-    public static RockyModel getRockyModel(String planetName) {
-        String normalizedName = planetName.toLowerCase().replace(" ", "_");
-        return ROCKY_MODELS.get(normalizedName);
-    }
-
-
-    private static RegistryEntry<DimensionType> selectDimensionTypeForDesert(MinecraftServer server, DesertModel model) {
-        Registry<DimensionType> registry = server.getRegistryManager().get(RegistryKeys.DIMENSION_TYPE);
-
-        // Check if our custom dimension type is already registered
-        if (registry.contains(ModDimensionTypes.DESERT_PLANET)) {
-            return registry.getEntry(ModDimensionTypes.DESERT_PLANET).orElseThrow();
-        }
-
-        // If not registered, register it dynamically
-        return registerDesertPlanetDimensionType(server, model);
-    }
+//    private static RegistryEntry<DimensionType> selectDimensionTypeForDesert(MinecraftServer server, DesertModel model) {
+//        Registry<DimensionType> registry = server.getRegistryManager().get(RegistryKeys.DIMENSION_TYPE);
+//
+//        // Check if our custom dimension type is already registered
+//        if (registry.contains(ModDimensionTypes.DESERT_PLANET)) {
+//            return registry.getEntry(ModDimensionTypes.DESERT_PLANET).orElseThrow();
+//        }
+//
+//        // If not registered, register it dynamically
+//        return registerDesertPlanetDimensionType(server, model);
+//    }
 
     // ADD this new method for dynamic registration:
-    private static RegistryEntry<DimensionType> registerDesertPlanetDimensionType(MinecraftServer server, DesertModel model) {
-        try {
-            MutableRegistry<DimensionType> mutableRegistry = (MutableRegistry<DimensionType>)
-                    server.getRegistryManager().get(RegistryKeys.DIMENSION_TYPE);
-
-            // Create the custom dimension type based on planet characteristics
-            DimensionType customDimensionType = DimensionTypeFactory.createDesertPlanetDimension(model);
-
-            // Register it
-            RegistryEntry<DimensionType> entry = mutableRegistry.add(ModDimensionTypes.DESERT_PLANET, customDimensionType, Lifecycle.stable());
-
-            Terradyne.LOGGER.info("✅ Registered custom desert planet dimension type");
-            Terradyne.LOGGER.info("   Temperature: " + model.getConfig().getSurfaceTemperature() + "°C");
-            Terradyne.LOGGER.info("   Ultrawarm: " + customDimensionType.ultrawarm());
-            Terradyne.LOGGER.info("   Ambient Light: " + customDimensionType.ambientLight());
-            Terradyne.LOGGER.info("   Has Skylight: " + customDimensionType.hasSkyLight());
-
-            return entry;
-
-        } catch (Exception e) {
-            Terradyne.LOGGER.error("Failed to register custom desert dimension type, falling back to overworld", e);
-
-            // Fallback to overworld if registration fails
-            Registry<DimensionType> registry = server.getRegistryManager().get(RegistryKeys.DIMENSION_TYPE);
-            return registry.getEntry(DimensionTypes.OVERWORLD).orElseThrow();
-        }
-    }
+//    private static RegistryEntry<DimensionType> registerDesertPlanetDimensionType(MinecraftServer server, DesertModel model) {
+//        try {
+//            MutableRegistry<DimensionType> mutableRegistry = (MutableRegistry<DimensionType>)
+//                    server.getRegistryManager().get(RegistryKeys.DIMENSION_TYPE);
+//
+//            // Create the custom dimension type based on planet characteristics
+//            DimensionType customDimensionType = DimensionTypeFactory.createDesertPlanetDimension(model);
+//
+//            // Register it
+//            RegistryEntry<DimensionType> entry = mutableRegistry.add(ModDimensionTypes.DESERT_PLANET, customDimensionType, Lifecycle.stable());
+//
+//            Terradyne.LOGGER.info("✅ Registered custom desert planet dimension type");
+//            Terradyne.LOGGER.info("   Temperature: " + model.getConfig().getSurfaceTemperature() + "°C");
+//            Terradyne.LOGGER.info("   Ultrawarm: " + customDimensionType.ultrawarm());
+//            Terradyne.LOGGER.info("   Ambient Light: " + customDimensionType.ambientLight());
+//            Terradyne.LOGGER.info("   Has Skylight: " + customDimensionType.hasSkyLight());
+//
+//            return entry;
+//
+//        } catch (Exception e) {
+//            Terradyne.LOGGER.error("Failed to register custom desert dimension type, falling back to overworld", e);
+//
+//            // Fallback to overworld if registration fails
+//            Registry<DimensionType> registry = server.getRegistryManager().get(RegistryKeys.DIMENSION_TYPE);
+//            return registry.getEntry(DimensionTypes.OVERWORLD).orElseThrow();
+//        }
+//    }
 
     // UPDATE the selectDimensionTypeForRocky method:
-    private static RegistryEntry<DimensionType> selectDimensionTypeForRocky(MinecraftServer server, RockyModel model) {
-        Registry<DimensionType> registry = server.getRegistryManager().get(RegistryKeys.DIMENSION_TYPE);
-
-        // Check if our custom dimension type is already registered
-        if (registry.contains(ModDimensionTypes.ROCKY_PLANET)) {
-            return registry.getEntry(ModDimensionTypes.ROCKY_PLANET).orElseThrow();
-        }
-
-        // If not registered, register it dynamically
-        return registerRockyPlanetDimensionType(server, model);
-    }
+//    private static RegistryEntry<DimensionType> selectDimensionTypeForRocky(MinecraftServer server, RockyModel model) {
+//        Registry<DimensionType> registry = server.getRegistryManager().get(RegistryKeys.DIMENSION_TYPE);
+//
+//        // Check if our custom dimension type is already registered
+//        if (registry.contains(ModDimensionTypes.ROCKY_PLANET)) {
+//            return registry.getEntry(ModDimensionTypes.ROCKY_PLANET).orElseThrow();
+//        }
+//
+//        // If not registered, register it dynamically
+//        return registerRockyPlanetDimensionType(server, model);
+//    }
 
     // ADD this method for rocky planet dimension registration:
-    private static RegistryEntry<DimensionType> registerRockyPlanetDimensionType(MinecraftServer server, RockyModel model) {
-        try {
-            MutableRegistry<DimensionType> mutableRegistry = (MutableRegistry<DimensionType>)
-                    server.getRegistryManager().get(RegistryKeys.DIMENSION_TYPE);
-
-            DimensionType customDimensionType = DimensionTypeFactory.createRockyPlanetDimension(model);
-            RegistryEntry<DimensionType> entry = mutableRegistry.add(ModDimensionTypes.ROCKY_PLANET, customDimensionType, Lifecycle.stable());
-
-            Terradyne.LOGGER.info("✅ Registered custom rocky planet dimension type");
-            Terradyne.LOGGER.info("   Atmospheric Density: " + model.getConfig().getAtmosphericDensity());
-            Terradyne.LOGGER.info("   Has Skylight: " + customDimensionType.hasSkyLight());
-            Terradyne.LOGGER.info("   Bed Works: " + customDimensionType.bedWorks());
-            Terradyne.LOGGER.info("   Ambient Light: " + customDimensionType.ambientLight());
-
-            return entry;
-
-        } catch (Exception e) {
-            Terradyne.LOGGER.error("Failed to register rocky dimension type, falling back to End", e);
-            Registry<DimensionType> registry = server.getRegistryManager().get(RegistryKeys.DIMENSION_TYPE);
-            return registry.getEntry(DimensionTypes.THE_END).orElseThrow();
-        }
-    }
+//    private static RegistryEntry<DimensionType> registerRockyPlanetDimensionType(MinecraftServer server, RockyModel model) {
+//        try {
+//            MutableRegistry<DimensionType> mutableRegistry = (MutableRegistry<DimensionType>)
+//                    server.getRegistryManager().get(RegistryKeys.DIMENSION_TYPE);
+//
+//            DimensionType customDimensionType = DimensionTypeFactory.createRockyPlanetDimension(model);
+//            RegistryEntry<DimensionType> entry = mutableRegistry.add(ModDimensionTypes.ROCKY_PLANET, customDimensionType, Lifecycle.stable());
+//
+//            Terradyne.LOGGER.info("✅ Registered custom rocky planet dimension type");
+//            Terradyne.LOGGER.info("   Atmospheric Density: " + model.getConfig().getAtmosphericDensity());
+//            Terradyne.LOGGER.info("   Has Skylight: " + customDimensionType.hasSkyLight());
+//            Terradyne.LOGGER.info("   Bed Works: " + customDimensionType.bedWorks());
+//            Terradyne.LOGGER.info("   Ambient Light: " + customDimensionType.ambientLight());
+//
+//            return entry;
+//
+//        } catch (Exception e) {
+//            Terradyne.LOGGER.error("Failed to register rocky dimension type, falling back to End", e);
+//            Registry<DimensionType> registry = server.getRegistryManager().get(RegistryKeys.DIMENSION_TYPE);
+//            return registry.getEntry(DimensionTypes.THE_END).orElseThrow();
+//        }
+//    }
 
     // UPDATE the selectDimensionTypeForOceanic method:
-    private static RegistryEntry<DimensionType> selectDimensionTypeForOceanic(MinecraftServer server, OceanicModel model) {
-        Registry<DimensionType> registry = server.getRegistryManager().get(RegistryKeys.DIMENSION_TYPE);
-
-        // Check if our custom dimension type is already registered
-        if (registry.contains(ModDimensionTypes.OCEANIC_PLANET)) {
-            return registry.getEntry(ModDimensionTypes.OCEANIC_PLANET).orElseThrow();
-        }
-
-        // If not registered, register it dynamically
-        return registerOceanicPlanetDimensionType(server, model);
-    }
+//    private static RegistryEntry<DimensionType> selectDimensionTypeForOceanic(MinecraftServer server, OceanicModel model) {
+//        Registry<DimensionType> registry = server.getRegistryManager().get(RegistryKeys.DIMENSION_TYPE);
+//
+//        // Check if our custom dimension type is already registered
+//        if (registry.contains(ModDimensionTypes.OCEANIC_PLANET)) {
+//            return registry.getEntry(ModDimensionTypes.OCEANIC_PLANET).orElseThrow();
+//        }
+//
+//        // If not registered, register it dynamically
+//        return registerOceanicPlanetDimensionType(server, model);
+//    }
 
     // ADD this method for oceanic planet dimension registration:
-    private static RegistryEntry<DimensionType> registerOceanicPlanetDimensionType(MinecraftServer server, OceanicModel model) {
-        try {
-            MutableRegistry<DimensionType> mutableRegistry = (MutableRegistry<DimensionType>)
-                    server.getRegistryManager().get(RegistryKeys.DIMENSION_TYPE);
-
-            DimensionType customDimensionType = DimensionTypeFactory.createOceanicPlanetDimension(model);
-            RegistryEntry<DimensionType> entry = mutableRegistry.add(ModDimensionTypes.OCEANIC_PLANET, customDimensionType, Lifecycle.stable());
-
-            Terradyne.LOGGER.info("✅ Registered custom oceanic planet dimension type");
-            Terradyne.LOGGER.info("   Ocean Coverage: " + (model.getConfig().getOceanCoverage() * 100) + "%");
-            Terradyne.LOGGER.info("   Atmospheric Humidity: " + (model.getConfig().getAtmosphericHumidity() * 100) + "%");
-
-            return entry;
-
-        } catch (Exception e) {
-            Terradyne.LOGGER.error("Failed to register oceanic dimension type, falling back to overworld", e);
-            Registry<DimensionType> registry = server.getRegistryManager().get(RegistryKeys.DIMENSION_TYPE);
-            return registry.getEntry(DimensionTypes.OVERWORLD).orElseThrow();
-        }
-    }
+//    private static RegistryEntry<DimensionType> registerOceanicPlanetDimensionType(MinecraftServer server, OceanicModel model) {
+//        try {
+//            MutableRegistry<DimensionType> mutableRegistry = (MutableRegistry<DimensionType>)
+//                    server.getRegistryManager().get(RegistryKeys.DIMENSION_TYPE);
+//
+//            DimensionType customDimensionType = DimensionTypeFactory.createOceanicPlanetDimension(model);
+//            RegistryEntry<DimensionType> entry = mutableRegistry.add(ModDimensionTypes.OCEANIC_PLANET, customDimensionType, Lifecycle.stable());
+//
+//            Terradyne.LOGGER.info("✅ Registered custom oceanic planet dimension type");
+//            Terradyne.LOGGER.info("   Ocean Coverage: " + (model.getConfig().getOceanCoverage() * 100) + "%");
+//            Terradyne.LOGGER.info("   Atmospheric Humidity: " + (model.getConfig().getAtmosphericHumidity() * 100) + "%");
+//
+//            return entry;
+//
+//        } catch (Exception e) {
+//            Terradyne.LOGGER.error("Failed to register oceanic dimension type, falling back to overworld", e);
+//            Registry<DimensionType> registry = server.getRegistryManager().get(RegistryKeys.DIMENSION_TYPE);
+//            return registry.getEntry(DimensionTypes.OVERWORLD).orElseThrow();
+//        }
+//    }
 
     // CORE WORLD CREATION
     private static ServerWorld createServerWorld(MinecraftServer server, RegistryKey<World> worldKey,

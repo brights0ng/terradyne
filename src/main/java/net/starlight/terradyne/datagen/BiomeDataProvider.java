@@ -6,7 +6,6 @@ import net.minecraft.entity.EntityType;
 import net.minecraft.entity.SpawnGroup;
 import net.minecraft.registry.RegistryWrapper;
 import net.minecraft.world.biome.*;
-import net.starlight.terradyne.planet.biome.ModBiomes;
 
 import java.util.concurrent.CompletableFuture;
 
@@ -21,11 +20,7 @@ public class BiomeDataProvider extends FabricDynamicRegistryProvider {
 
     @Override
     protected void configure(RegistryWrapper.WrapperLookup registries, Entries entries) {
-        // Register our 4 core desert biomes
-        entries.add(ModBiomes.DUNE_SEA, createDuneSeaBiome());
-        entries.add(ModBiomes.GRANITE_MESAS, createGraniteMesasBiome());
-        entries.add(ModBiomes.LIMESTONE_CANYONS, createLimestoneCanyonsBiome());
-        entries.add(ModBiomes.SALT_FLATS, createSaltFlatsBiome());
+        // Register our 4 core desert
     }
 
     @Override
