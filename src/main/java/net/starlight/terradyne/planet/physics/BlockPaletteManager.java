@@ -89,17 +89,17 @@ public class BlockPaletteManager {
         PALETTE_CACHE.put(CrustComposition.SILICATE, new BlockPalette(
                 Blocks.STONE,           // baseRock: Common stone
                 Blocks.ANDESITE,        // upperRock: Layered volcanic
-                Blocks.DIORITE,         // featureRock: Intrusive igneous
+                Blocks.GRANITE,         // featureRock: Intrusive igneous
                 Blocks.GRAVEL,          // looseRock: Weathered fragments
-                Blocks.DIRT            // organicRock: Soil formation
+                Blocks.GRASS_BLOCK            // organicRock: Soil formation
         ));
 
         // IRON_RICH - Metallic worlds
         PALETTE_CACHE.put(CrustComposition.FERROUS, new BlockPalette(
-                Blocks.IRON_BLOCK,      // baseRock: Metallic iron
-                Blocks.DEEPSLATE,       // upperRock: Dense dark rock
+                Blocks.GRANITE,      // baseRock: Metallic iron
+                Blocks.RED_SANDSTONE,       // upperRock: Dense dark rock
                 Blocks.RAW_IRON_BLOCK,  // featureRock: Ore veins
-                Blocks.BLACKSTONE,      // looseRock: Dark fragments
+                Blocks.RED_SAND,      // looseRock: Dark fragments
                 Blocks.ROOTED_DIRT     // organicRock: Hardy soil
         ));
 
@@ -114,18 +114,18 @@ public class BlockPaletteManager {
 
         // ICE_RICH - Frozen worlds
         PALETTE_CACHE.put(CrustComposition.REGOLITHIC, new BlockPalette(
-                Blocks.ICE,             // baseRock: Frozen water
-                Blocks.PACKED_ICE,      // upperRock: Compressed ice
-                Blocks.BLUE_ICE,        // featureRock: Ancient ice
-                Blocks.SNOW_BLOCK,      // looseRock: Snow accumulation
-                Blocks.DIRT            // organicRock: Exposed soil
+                Blocks.COBBLESTONE,             // baseRock: Rocky rubble
+                Blocks.COBBLED_DEEPSLATE,      // upperRock: Rocky rubble
+                Blocks.ANDESITE,        // featureRock: Rocky rubble
+                Blocks.GRAVEL,      // looseRock: Rocky rubble
+                Blocks.AIR            // organicRock: No possible organic life
         ));
 
         // SULFUR_RICH - Volcanic sulfur worlds
         PALETTE_CACHE.put(CrustComposition.SULFURIC, new BlockPalette(
                 Blocks.YELLOW_TERRACOTTA,    // baseRock: Sulfur deposits
                 Blocks.ORANGE_TERRACOTTA,    // upperRock: Oxidized sulfur
-                Blocks.GOLD_BLOCK,           // featureRock: Sulfur crystals (gold approximation)
+                Blocks.RAW_GOLD_BLOCK,           // featureRock: Sulfur crystals (gold approximation)
                 Blocks.YELLOW_CONCRETE_POWDER, // looseRock: Sulfur dust
                 Blocks.COARSE_DIRT          // organicRock: Sulfur-enriched soil
         ));
@@ -144,26 +144,26 @@ public class BlockPaletteManager {
                 Blocks.BASALT,          // baseRock: Volcanic basalt
                 Blocks.SMOOTH_BASALT,   // upperRock: Cooled lava flows
                 Blocks.MAGMA_BLOCK,     // featureRock: Active volcanism
-                Blocks.BLACK_CONCRETE_POWDER, // looseRock: Volcanic ash
+                Blocks.GRAY_CONCRETE_POWDER, // looseRock: Volcanic ash
                 Blocks.ROOTED_DIRT     // organicRock: Volcanic soil
         ));
 
         // GRANITE - Continental crust worlds
         PALETTE_CACHE.put(CrustComposition.METALLIC, new BlockPalette(
-                Blocks.GRANITE,         // baseRock: Granite bedrock
-                Blocks.POLISHED_GRANITE, // upperRock: Weathered granite
-                Blocks.QUARTZ_BLOCK,    // featureRock: Quartz veins
-                Blocks.COARSE_DIRT,     // looseRock: Granite fragments
+                Blocks.IRON_BLOCK,         // baseRock: Granite bedrock
+                Blocks.RAW_COPPER_BLOCK, // upperRock: Weathered granite
+                Blocks.RAW_IRON_BLOCK,    // featureRock: Quartz veins
+                Blocks.LIGHT_GRAY_CONCRETE_POWDER,     // looseRock: Granite fragments
                 Blocks.GRASS_BLOCK     // organicRock: Rich grassland
         ));
 
         // SANDSTONE - Sedimentary worlds
         PALETTE_CACHE.put(CrustComposition.HADEAN, new BlockPalette(
-                Blocks.SANDSTONE,       // baseRock: Sedimentary layers
-                Blocks.SMOOTH_SANDSTONE, // upperRock: Compressed sediment
-                Blocks.CHISELED_SANDSTONE, // featureRock: Weathered formations
-                Blocks.SAND,            // looseRock: Loose sediment
-                Blocks.DIRT            // organicRock: Sedimentary soil
+                Blocks.LAVA,       // baseRock: Sedimentary layers
+                Blocks.MAGMA_BLOCK, // upperRock: Compressed sediment
+                Blocks.BLACKSTONE, // featureRock: Weathered formations
+                Blocks.NETHERRACK,            // looseRock: Loose sediment
+                Blocks.AIR            // organicRock: No possible organic rock
         ));
     }
 
