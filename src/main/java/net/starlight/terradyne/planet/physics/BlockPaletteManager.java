@@ -86,7 +86,7 @@ public class BlockPaletteManager {
     private static void initializePalettes() {
         
         // SILICATE_RICH - Standard rocky planets
-        PALETTE_CACHE.put(CrustComposition.SILICATE_RICH, new BlockPalette(
+        PALETTE_CACHE.put(CrustComposition.SILICATE, new BlockPalette(
                 Blocks.STONE,           // baseRock: Common stone
                 Blocks.ANDESITE,        // upperRock: Layered volcanic
                 Blocks.DIORITE,         // featureRock: Intrusive igneous
@@ -95,7 +95,7 @@ public class BlockPaletteManager {
         ));
 
         // IRON_RICH - Metallic worlds
-        PALETTE_CACHE.put(CrustComposition.IRON_RICH, new BlockPalette(
+        PALETTE_CACHE.put(CrustComposition.FERROUS, new BlockPalette(
                 Blocks.IRON_BLOCK,      // baseRock: Metallic iron
                 Blocks.DEEPSLATE,       // upperRock: Dense dark rock
                 Blocks.RAW_IRON_BLOCK,  // featureRock: Ore veins
@@ -104,7 +104,7 @@ public class BlockPaletteManager {
         ));
 
         // CARBON_RICH - Diamond/graphite worlds
-        PALETTE_CACHE.put(CrustComposition.CARBON_RICH, new BlockPalette(
+        PALETTE_CACHE.put(CrustComposition.CARBONACEOUS, new BlockPalette(
                 Blocks.COAL_BLOCK,      // baseRock: Carbon deposits
                 Blocks.BLACKSTONE,      // upperRock: Carbonized rock
                 Blocks.DIAMOND_BLOCK,   // featureRock: Diamond formations
@@ -113,7 +113,7 @@ public class BlockPaletteManager {
         ));
 
         // ICE_RICH - Frozen worlds
-        PALETTE_CACHE.put(CrustComposition.ICE_RICH, new BlockPalette(
+        PALETTE_CACHE.put(CrustComposition.REGOLITHIC, new BlockPalette(
                 Blocks.ICE,             // baseRock: Frozen water
                 Blocks.PACKED_ICE,      // upperRock: Compressed ice
                 Blocks.BLUE_ICE,        // featureRock: Ancient ice
@@ -122,7 +122,7 @@ public class BlockPaletteManager {
         ));
 
         // SULFUR_RICH - Volcanic sulfur worlds
-        PALETTE_CACHE.put(CrustComposition.SULFUR_RICH, new BlockPalette(
+        PALETTE_CACHE.put(CrustComposition.SULFURIC, new BlockPalette(
                 Blocks.YELLOW_TERRACOTTA,    // baseRock: Sulfur deposits
                 Blocks.ORANGE_TERRACOTTA,    // upperRock: Oxidized sulfur
                 Blocks.GOLD_BLOCK,           // featureRock: Sulfur crystals (gold approximation)
@@ -131,7 +131,7 @@ public class BlockPaletteManager {
         ));
 
         // SALT_RICH - Evaporite worlds
-        PALETTE_CACHE.put(CrustComposition.SALT_RICH, new BlockPalette(
+        PALETTE_CACHE.put(CrustComposition.HALLIDE, new BlockPalette(
                 Blocks.WHITE_TERRACOTTA,     // baseRock: Salt deposits
                 Blocks.CALCITE,              // upperRock: Crystalline layers
                 Blocks.QUARTZ_BLOCK,         // featureRock: Salt crystals
@@ -149,7 +149,7 @@ public class BlockPaletteManager {
         ));
 
         // GRANITE - Continental crust worlds
-        PALETTE_CACHE.put(CrustComposition.GRANITE, new BlockPalette(
+        PALETTE_CACHE.put(CrustComposition.METALLIC, new BlockPalette(
                 Blocks.GRANITE,         // baseRock: Granite bedrock
                 Blocks.POLISHED_GRANITE, // upperRock: Weathered granite
                 Blocks.QUARTZ_BLOCK,    // featureRock: Quartz veins
@@ -158,7 +158,7 @@ public class BlockPaletteManager {
         ));
 
         // SANDSTONE - Sedimentary worlds
-        PALETTE_CACHE.put(CrustComposition.SANDSTONE, new BlockPalette(
+        PALETTE_CACHE.put(CrustComposition.HADEAN, new BlockPalette(
                 Blocks.SANDSTONE,       // baseRock: Sedimentary layers
                 Blocks.SMOOTH_SANDSTONE, // upperRock: Compressed sediment
                 Blocks.CHISELED_SANDSTONE, // featureRock: Weathered formations

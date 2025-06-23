@@ -4,15 +4,15 @@ package net.starlight.terradyne.planet.physics;
  * Primary crust composition types affecting geology and terrain
  */
 public enum CrustComposition {
-    SILICATE_RICH("Silicate-Rich", "Standard rocky composition, moderate reflectivity"),
-    IRON_RICH("Iron-Rich", "Metallic surface, low reflectivity, magnetic"),
-    CARBON_RICH("Carbon-Rich", "Diamond/graphite formations, very low reflectivity"),
-    ICE_RICH("Ice-Rich", "Frozen water/methane, high reflectivity, cold"),
-    SULFUR_RICH("Sulfur-Rich", "Volcanic sulfur compounds, yellow tints"),
-    SALT_RICH("Salt-Rich", "Dried ocean beds, crystalline formations"),
-    BASALTIC("Basaltic", "Volcanic rock surfaces, dark, recent volcanism"),
-    GRANITE("Granite", "Light-colored igneous rock, high reflectivity"),
-    SANDSTONE("Sandstone", "Sedimentary rock, moderate reflectivity, layered");
+    SILICATE("Silicate", "Silicate rock crust, lends to habitable life"),
+    FERROUS("Ferrous", "Iron-rich rock, deep red hue"),
+    CARBONACEOUS("Carbonaceous", "Carbon rock surface, diamond and graphite features"),
+    REGOLITHIC("Regolithic", "Broken rock rubble surface, littered with craters"),
+    SULFURIC("Sulfuric", "Volcanic sulfur compounds, yellow tints"),
+    HALLIDE("Hallide", "Dried ocean beds, crystalline formations"),
+    BASALTIC("Basaltic", "Dead volcanic rock surfaces, dark"),
+    METALLIC("Metallic", "Hard metallic alloy crust, likely core of a dead gas giant"),
+    HADEAN("Hadean", "Active volcanic surface, fresh igneous rock");
 
     private final String displayName;
     private final String description;

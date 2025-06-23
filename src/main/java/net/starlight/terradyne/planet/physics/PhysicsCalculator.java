@@ -120,10 +120,10 @@ public class PhysicsCalculator {
         // === COMPOSITION-BASED CONSTRAINTS ===
         
         // Ice-rich planets must be cold
-        if (corrected.getCrustComposition() == CrustComposition.ICE_RICH && estimatedTemp > 0) {
-            // Can't easily change temperature, so warn but allow
-            Terradyne.LOGGER.warn("Ice-rich crust may not be stable at {}°C", estimatedTemp);
-        }
+//        if (corrected.getCrustComposition() == CrustComposition.BASALTIC && estimatedTemp > 0) { // This section uses outdated crust types
+//            // Can't easily change temperature, so warn but allow
+//            Terradyne.LOGGER.warn("Ice-rich crust may not be stable at {}°C", estimatedTemp);
+//        }
 
         return corrected;
     }
@@ -178,10 +178,10 @@ public class PhysicsCalculator {
         
         // Crust composition affects density
         double densityModifier = switch (config.getCrustComposition()) {
-            case IRON_RICH -> 1.4;        // Much denser
-            case CARBON_RICH -> 0.6;      // Diamond is less dense than rock
-            case ICE_RICH -> 0.3;         // Ice is much less dense
-            case SALT_RICH -> 1.1;        // Slightly denser
+            case METALLIC -> 1.4;        // Much denser
+            case CARBONACEOUS -> 0.6;      // Diamond is less dense than rock
+            case REGOLITHIC -> 0.7;         // REGOLITHIC is less dense
+            case HALLIDE -> 1.1;        // Slightly denser
             default -> 1.0;               // Standard rocky density
         };
         
@@ -210,10 +210,10 @@ public class PhysicsCalculator {
         
         // Crust composition affects albedo (reflectivity)
         double albedoEffect = switch (config.getCrustComposition()) {
-            case ICE_RICH -> -15.0;       // High reflectivity = cooler
-            case CARBON_RICH -> 8.0;      // Low reflectivity = warmer
-            case IRON_RICH -> 5.0;        // Dark metal = warmer
-            case SALT_RICH -> -8.0;       // White salt = cooler
+            case SULFURIC -> 5.0;       // Warmer
+            case CARBONACEOUS -> 8.0;      // Low reflectivity = warmer
+            case METALLIC -> 5.0;        // Dark metal = warmer
+            case HALLIDE -> -8.0;       // White salt = cooler
             default -> 0.0;
         };
         
@@ -321,15 +321,15 @@ public class PhysicsCalculator {
      */
     private static Block determineMainRockType(PlanetConfig config) {
         return switch (config.getCrustComposition()) {
-            case SILICATE_RICH -> Blocks.STONE;
-            case IRON_RICH -> Blocks.IRON_BLOCK;
-            case CARBON_RICH -> Blocks.COAL_BLOCK;
-            case ICE_RICH -> Blocks.ICE;
-            case SULFUR_RICH -> Blocks.YELLOW_TERRACOTTA; // Approximation
-            case SALT_RICH -> Blocks.WHITE_TERRACOTTA;    // Approximation
+            case SILICATE -> Blocks.STONE;
+            case FERROUS -> Blocks.RED_SANDSTONE;
+            case CARBONACEOUS -> Blocks.COAL_BLOCK;
+            case REGOLITHIC -> Blocks.ANDESITE;
+            case SULFURIC -> Blocks.YELLOW_TERRACOTTA; // Approximation
+            case HALLIDE -> Blocks.WHITE_CONCRETE_POWDER;    // Approximation
             case BASALTIC -> Blocks.BASALT;
-            case GRANITE -> Blocks.GRANITE;
-            case SANDSTONE -> Blocks.SANDSTONE;
+            case METALLIC -> Blocks.DEEPSLATE_IRON_ORE;
+            case HADEAN -> Blocks.MAGMA_BLOCK;
         };
     }
 
