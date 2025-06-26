@@ -307,3 +307,87 @@ class TectonicNoiseMap extends NoiseMap {
     @Override
     public int getLayerCount() { return 3; }
 }
+
+// Add these classes to the bottom of PlanetaryNoiseSystem.java file
+
+/**
+ * PLACEHOLDER - Temperature Noise Map (Phase 5)
+ * TODO: Implement proper temperature distribution with latitude, elevation, and atmospheric effects
+ */
+class TemperatureNoiseMap extends NoiseMap {
+
+    public TemperatureNoiseMap(PlanetConfig config, PlanetData planetData, SimplexNoiseSampler masterNoise) {
+        super(config, planetData, masterNoise);
+    }
+
+    @Override
+    public double sample(int worldX, int worldZ) {
+        // PLACEHOLDER: Simple latitude-based temperature
+        double latitude = Math.abs(worldZ) / (config.getCircumference() * 0.25); // 0-1 from equator to pole
+        double baseTemp = planetData.getAverageSurfaceTemp();
+        double latitudeEffect = -latitude * 40.0; // -40°C from equator to pole
+
+        return baseTemp + latitudeEffect;
+    }
+
+    @Override
+    public int getLayerCount() {
+        return 1; // Will have 3-4 layers in Phase 5: Base + Latitude + Elevation + Greenhouse
+    }
+}
+
+/**
+ * PLACEHOLDER - Moisture Noise Map (Phase 5)
+ * TODO: Implement proper moisture distribution with evaporation, wind patterns, and orographic effects
+ */
+class MoistureNoiseMap extends NoiseMap {
+
+    public MoistureNoiseMap(PlanetConfig config, PlanetData planetData, SimplexNoiseSampler masterNoise) {
+        super(config, planetData, masterNoise);
+    }
+
+    @Override
+    public double sample(int worldX, int worldZ) {
+        // PLACEHOLDER: Return planet water content with slight noise variation
+        double baseNoise = masterNoise.sample(worldX * 0.001, 4, worldZ * 0.001);
+        double variation = baseNoise * 0.2; // ±20% variation
+        return Math.max(0.0, Math.min(1.0, planetData.getActualWaterContent() + variation));
+    }
+
+    @Override
+    public int getLayerCount() {
+        return 1; // Will have 4-5 layers in Phase 5: Base + Evaporation + Wind + Orographic + Distance from water
+    }
+}
+
+/**
+ * PLACEHOLDER - Biome Noise Map (Phase 7)
+ * TODO: Implement proper biome classification based on temperature, moisture, elevation, and geology
+ */
+class BiomeNoiseMap extends NoiseMap {
+
+    public BiomeNoiseMap(PlanetConfig config, PlanetData planetData, SimplexNoiseSampler masterNoise) {
+        super(config, planetData, masterNoise);
+    }
+
+    @Override
+    public double sample(int worldX, int worldZ) {
+        // PLACEHOLDER: Simple biome classification based on temperature/moisture
+        // This will be replaced with proper Whittaker biome classification in Phase 7
+
+        // Get temperature and moisture (will use proper maps in Phase 7)
+        double temp = planetData.getAverageSurfaceTemp();
+        double moisture = planetData.getActualWaterContent();
+
+        // Simple biome index classification
+        if (temp < 0) return 0.0;           // Cold/Tundra
+        if (moisture < 0.3) return 1.0;     // Desert
+        if (temp > 25) return 2.0;          // Tropical
+        return 3.0;                         // Temperate
+    }
+
+    @Override
+    public int getLayerCount() {
+        return 1; // Will have 2-3 layers in Phase 7: Classification + Transition smoothing + Local variations
+    }
+}

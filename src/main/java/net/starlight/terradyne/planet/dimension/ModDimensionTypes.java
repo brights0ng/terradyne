@@ -11,54 +11,83 @@ import net.starlight.terradyne.Terradyne;
  */
 public class ModDimensionTypes {
 
-    // Desert planet dimension type
-    public static final RegistryKey<DimensionType> DESERT_PLANET = RegistryKey.of(
+    /**
+     * Enum for Terradyne dimension type variants
+     */
+    public enum TerradyneDimensionType {
+        HABITABLE("habitable"),                 // Oxygen-rich, good living conditions
+        ULTRAWARM("ultrawarm"),                 // Hadean/extremely hot planets  
+        THICK_ATMOSPHERE("thick_atmosphere"),   // Dense greenhouse effect
+        STANDARD("standard"),                   // Vacuum/thin/non-breathable atmosphere
+        TOXIC("toxic");                         // Hostile atmosphere composition
+
+        private final String name;
+
+        TerradyneDimensionType(String name) {
+            this.name = name;
+        }
+
+        public String getName() {
+            return name;
+        }
+    }
+
+    // Registry keys for all dimension types
+    public static final RegistryKey<DimensionType> TERRADYNE_HABITABLE = RegistryKey.of(
             RegistryKeys.DIMENSION_TYPE,
-            new Identifier(Terradyne.MOD_ID, "desert_planet")
+            new Identifier(Terradyne.MOD_ID, "habitable")
     );
 
-    // Volcanic planet dimension type
-    public static final RegistryKey<DimensionType> VOLCANIC_PLANET = RegistryKey.of(
+    public static final RegistryKey<DimensionType> TERRADYNE_ULTRAWARM = RegistryKey.of(
             RegistryKeys.DIMENSION_TYPE,
-            new Identifier(Terradyne.MOD_ID, "volcanic_planet")
+            new Identifier(Terradyne.MOD_ID, "ultrawarm")
     );
 
-    // Icy planet dimension type
-    public static final RegistryKey<DimensionType> ICY_PLANET = RegistryKey.of(
+    public static final RegistryKey<DimensionType> TERRADYNE_THICK_ATMOSPHERE = RegistryKey.of(
             RegistryKeys.DIMENSION_TYPE,
-            new Identifier(Terradyne.MOD_ID, "icy_planet")
+            new Identifier(Terradyne.MOD_ID, "thick_atmosphere")
     );
 
-    // Rocky/airless planet dimension type
-    public static final RegistryKey<DimensionType> ROCKY_PLANET = RegistryKey.of(
+    public static final RegistryKey<DimensionType> TERRADYNE_STANDARD = RegistryKey.of(
             RegistryKeys.DIMENSION_TYPE,
-            new Identifier(Terradyne.MOD_ID, "rocky_planet")
+            new Identifier(Terradyne.MOD_ID, "standard")
     );
 
-    // Oceanic planet dimension type
-    public static final RegistryKey<DimensionType> OCEANIC_PLANET = RegistryKey.of(
+    public static final RegistryKey<DimensionType> TERRADYNE_TOXIC = RegistryKey.of(
             RegistryKeys.DIMENSION_TYPE,
-            new Identifier(Terradyne.MOD_ID, "oceanic_planet")
-    );
-
-    // Iron/metallic planet dimension type
-    public static final RegistryKey<DimensionType> IRON_PLANET = RegistryKey.of(
-            RegistryKeys.DIMENSION_TYPE,
-            new Identifier(Terradyne.MOD_ID, "iron_planet")
-    );
-
-    // Carbon planet dimension type
-    public static final RegistryKey<DimensionType> CARBON_PLANET = RegistryKey.of(
-            RegistryKeys.DIMENSION_TYPE,
-            new Identifier(Terradyne.MOD_ID, "carbon_planet")
+            new Identifier(Terradyne.MOD_ID, "toxic")
     );
 
     /**
+     * Get registry key for dimension type
+     */
+    public static RegistryKey<DimensionType> getRegistryKey(TerradyneDimensionType type) {
+        return switch (type) {
+            case HABITABLE -> TERRADYNE_HABITABLE;
+            case ULTRAWARM -> TERRADYNE_ULTRAWARM;
+            case THICK_ATMOSPHERE -> TERRADYNE_THICK_ATMOSPHERE;
+            case STANDARD -> TERRADYNE_STANDARD;
+            case TOXIC -> TERRADYNE_TOXIC;
+        };
+    }
+    
+    /**
      * Initialize dimension types (called from main mod class)
+     * NOTE: Actual registration happens at server startup via DimensionTypeRegistrar
      */
     public static void init() {
-        Terradyne.LOGGER.info("Registered custom planet dimension type keys");
-        // The actual dimension type instances are created dynamically
-        // when planets are generated, based on planet characteristics
+        Terradyne.LOGGER.info("Terradyne dimension type keys initialized:");
+        Terradyne.LOGGER.info("  {} - {}", TERRADYNE_HABITABLE.getValue(),
+                DimensionTypeFactory.getDimensionTypeDescription(TerradyneDimensionType.HABITABLE));
+        Terradyne.LOGGER.info("  {} - {}", TERRADYNE_ULTRAWARM.getValue(),
+                DimensionTypeFactory.getDimensionTypeDescription(TerradyneDimensionType.ULTRAWARM));
+        Terradyne.LOGGER.info("  {} - {}", TERRADYNE_THICK_ATMOSPHERE.getValue(),
+                DimensionTypeFactory.getDimensionTypeDescription(TerradyneDimensionType.THICK_ATMOSPHERE));
+        Terradyne.LOGGER.info("  {} - {}", TERRADYNE_STANDARD.getValue(),
+                DimensionTypeFactory.getDimensionTypeDescription(TerradyneDimensionType.STANDARD));
+        Terradyne.LOGGER.info("  {} - {}", TERRADYNE_TOXIC.getValue(),
+                DimensionTypeFactory.getDimensionTypeDescription(TerradyneDimensionType.TOXIC));
+
+        Terradyne.LOGGER.info("Dimension types will be registered at server startup via DimensionTypeRegistrar");
     }
 }

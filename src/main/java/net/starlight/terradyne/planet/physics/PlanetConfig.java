@@ -34,7 +34,7 @@ public class PlanetConfig {
         // Set Earth-like defaults - no validation here
         this.circumference = 40000;  // Earth-like
         this.distanceFromStar = 150; // Earth-like (150M km)
-        this.crustComposition = CrustComposition.SILICATE_RICH;
+        this.crustComposition = CrustComposition.SILICATE;
         this.atmosphereComposition = AtmosphereComposition.OXYGEN_RICH;
         this.tectonicActivity = 0.6;
         this.waterContent = 0.7;

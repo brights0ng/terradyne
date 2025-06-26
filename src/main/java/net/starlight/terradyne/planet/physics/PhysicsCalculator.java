@@ -190,34 +190,119 @@ public class PhysicsCalculator {
 
     /**
      * Calculate average surface temperature
-     * Simplified: distance from star + atmospheric greenhouse effect
+     * FIXED: Enhanced greenhouse effect for Venus-like conditions
      */
     private static double calculateTemperature(PlanetConfig config) {
         // Base temperature from star distance (Earth reference: 150M km = 15°C)
         double baseTemp = 15.0 - (config.getDistanceFromStar() - 150) * 0.12;
-        
-        // Atmospheric greenhouse effect
+
+        // Enhanced atmospheric greenhouse effect
         double greenhouse = 0.0;
         if (config.getAtmosphericDensity() > 0.1) {
             greenhouse = switch (config.getAtmosphereComposition()) {
-                case CARBON_DIOXIDE -> config.getAtmosphericDensity() * 80.0;    // Strong greenhouse
-                case WATER_VAPOR_RICH -> config.getAtmosphericDensity() * 60.0;  // Steam greenhouse
-                case METHANE -> config.getAtmosphericDensity() * 40.0;           // Methane greenhouse
-                case OXYGEN_RICH, NITROGEN_RICH -> config.getAtmosphericDensity() * 20.0; // Mild greenhouse
-                default -> config.getAtmosphericDensity() * 10.0;               // Minimal greenhouse
+                case CARBON_DIOXIDE -> {
+                    // FIXED: Much stronger greenhouse for Venus-like conditions
+                    double baseCO2Effect = config.getAtmosphericDensity() * 120.0; // Increased from 80.0
+                    // Extra greenhouse for very dense CO2 atmospheres (Venus effect)
+                    if (config.getAtmosphericDensity() > 0.8) {
+                        baseCO2Effect += (config.getAtmosphericDensity() - 0.8) * 300.0; // Runaway greenhouse
+                    }
+                    yield baseCO2Effect;
+                }
+                case WATER_VAPOR_RICH -> {
+                    double baseWaterEffect = config.getAtmosphericDensity() * 80.0;
+                    // Steam greenhouse runaway effect
+                    if (config.getAtmosphericDensity() > 0.7) {
+                        baseWaterEffect += (config.getAtmosphericDensity() - 0.7) * 200.0;
+                    }
+                    yield baseWaterEffect;
+                }
+                case METHANE -> config.getAtmosphericDensity() * 50.0;           // Strong but not as extreme
+                case OXYGEN_RICH, NITROGEN_RICH -> config.getAtmosphericDensity() * 25.0; // Mild greenhouse
+                case NOBLE_GAS_MIXTURE -> config.getAtmosphericDensity() * 15.0; // Minimal greenhouse
+                case HYDROGEN_SULFIDE -> config.getAtmosphericDensity() * 40.0;  // Moderate greenhouse + toxic
+                case TRACE_ATMOSPHERE -> config.getAtmosphericDensity() * 5.0;   // Very weak
+                case VACUUM -> 0.0;                                              // No greenhouse
             };
         }
-        
+
         // Crust composition affects albedo (reflectivity)
         double albedoEffect = switch (config.getCrustComposition()) {
-            case SULFURIC -> 5.0;       // Warmer
-            case CARBONACEOUS -> 8.0;      // Low reflectivity = warmer
-            case METALLIC -> 5.0;        // Dark metal = warmer
-            case HALLIDE -> -8.0;       // White salt = cooler
+            case SULFURIC -> 8.0;        // Sulfur compounds = warmer
+            case CARBONACEOUS -> 12.0;   // Low reflectivity = warmer
+            case METALLIC -> 10.0;       // Dark metal = warmer
+            case HADEAN -> 15.0;         // Active volcanism = much warmer
+            case HALLIDE -> -12.0;       // White salt = cooler
+            case REGOLITHIC -> -5.0;     // Rocky rubble = slightly cooler
             default -> 0.0;
         };
-        
-        return baseTemp + greenhouse + albedoEffect;
+
+        double finalTemp = baseTemp + greenhouse + albedoEffect;
+
+        // Log temperature calculation for debugging
+        Terradyne.LOGGER.debug("Temperature calculation for {}: base={:.1f}°C + greenhouse={:.1f}°C + albedo={:.1f}°C = {:.1f}°C",
+                config.getPlanetName(), baseTemp, greenhouse, albedoEffect, finalTemp);
+
+        return finalTemp;
+    }
+
+    /**
+     * Calculate habitability score
+     * FIXED: Much stricter criteria for extreme conditions
+     */
+    private static double calculateHabitability(PlanetConfig config, double temperature, double gravity) {
+        double habitability = 0.0;
+
+        // FIXED: Stricter temperature range for habitability
+        if (temperature > 0 && temperature < 40) {          // Narrowed from 50°C
+            habitability += 0.4;
+        } else if (temperature > -10 && temperature < 60) { // Narrowed from -20 to 80°C
+            habitability += 0.1;                             // Reduced from 0.2
+        }
+        // FIXED: Extreme temperatures are completely uninhabitable
+        if (temperature > 100 || temperature < -50) {
+            habitability = 0.0; // Override any other factors
+        }
+
+        // FIXED: Water requirement is more strict
+        if (config.getWaterContent() > 0.5) {               // Increased from 0.3
+            habitability += 0.3;
+        } else if (config.getWaterContent() > 0.2) {         // Increased from 0.1
+            habitability += 0.1;
+        }
+        // FIXED: No water = major habitability penalty
+        if (config.getWaterContent() < 0.05) {
+            habitability *= 0.2; // 80% penalty for no water
+        }
+
+        // Reasonable gravity (unchanged)
+        if (gravity > 0.3 && gravity < 2.0) {
+            habitability += 0.2;
+        }
+
+        // FIXED: Atmosphere requirements are stricter
+        if (config.getAtmosphereComposition() == AtmosphereComposition.OXYGEN_RICH &&
+                config.getAtmosphericDensity() > 0.3) {
+            habitability += 0.2; // Only oxygen-rich gets bonus
+        } else if (config.getAtmosphereComposition() == AtmosphereComposition.NITROGEN_RICH &&
+                config.getAtmosphericDensity() > 0.3) {
+            habitability += 0.1; // Nitrogen is okay but not great
+        }
+        // FIXED: Toxic atmospheres are uninhabitable
+        if (config.getAtmosphereComposition() == AtmosphereComposition.HYDROGEN_SULFIDE ||
+                config.getAtmosphereComposition() == AtmosphereComposition.CARBON_DIOXIDE ||
+                config.getAtmosphereComposition() == AtmosphereComposition.VACUUM) {
+            habitability = Math.min(habitability, 0.1); // Cap at 10% for toxic/no atmosphere
+        }
+
+        double finalHabitability = Math.max(0.0, Math.min(1.0, habitability));
+
+        // Log habitability calculation for debugging
+        Terradyne.LOGGER.debug("Habitability calculation for {}: temp={:.1f}°C, water={:.2f}, atm={}, result={:.2f}",
+                config.getPlanetName(), temperature, config.getWaterContent(),
+                config.getAtmosphereComposition().getDisplayName(), finalHabitability);
+
+        return finalHabitability;
     }
 
     /**
@@ -247,39 +332,6 @@ public class PhysicsCalculator {
         
         // Default: mature
         return PlanetAge.MATURE;
-    }
-
-    /**
-     * Calculate habitability score
-     */
-    private static double calculateHabitability(PlanetConfig config, double temperature, double gravity) {
-        double habitability = 0.0;
-        
-        // Temperature range suitable for life
-        if (temperature > 0 && temperature < 50) {
-            habitability += 0.4;
-        } else if (temperature > -20 && temperature < 80) {
-            habitability += 0.2;
-        }
-        
-        // Liquid water presence
-        if (config.getWaterContent() > 0.3) {
-            habitability += 0.3;
-        } else if (config.getWaterContent() > 0.1) {
-            habitability += 0.1;
-        }
-        
-        // Reasonable gravity
-        if (gravity > 0.3 && gravity < 2.0) {
-            habitability += 0.2;
-        }
-        
-        // Atmosphere presence
-        if (config.getAtmosphericDensity() > 0.2) {
-            habitability += 0.1;
-        }
-        
-        return Math.max(0.0, Math.min(1.0, habitability));
     }
 
     /**
@@ -335,17 +387,19 @@ public class PhysicsCalculator {
 
     /**
      * Calculate sea level based on water content and crust thickness
+     * Updated for 0-256 height range
      */
     private static int calculateSeaLevel(PlanetConfig config) {
-        int baseSeaLevel = 63; // Minecraft default
-        
+        int baseSeaLevel = 128; // Middle of 0-256 range (was 63 for -64-319 range)
+
         // Crustal thickness affects elevation
         int elevationOffset = (int) ((config.getCrustalThickness() - 35.0) * 0.5);
-        
+
         // Water content affects sea level
         int waterOffset = (int) ((config.getWaterContent() - 0.5) * 20);
-        
-        return Math.max(10, Math.min(120, baseSeaLevel + elevationOffset + waterOffset));
+
+        // Clamp to valid height range for 0-256 world
+        return Math.max(10, Math.min(200, baseSeaLevel + elevationOffset + waterOffset));
     }
 
     /**

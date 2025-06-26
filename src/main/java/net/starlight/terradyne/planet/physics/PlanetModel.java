@@ -136,9 +136,9 @@ public class PlanetModel {
     public double getTemperature(int worldX, int worldZ) {
         return noiseSystem.sampleTemperature(worldX, worldZ);
     }
-    
+
     /**
-     * Get moisture at world coordinates  
+     * Get moisture at world coordinates
      * Uses noise system for climate modeling
      */
     public double getMoisture(int worldX, int worldZ) {
@@ -218,42 +218,51 @@ public class PlanetModel {
     public String sampleAllNoiseAt(int worldX, int worldZ) {
         return noiseSystem.sampleAllMaps(worldX, worldZ);
     }
-    
+
     /**
      * Get planet classification for display
+     * FIXED: More accurate temperature classifications
      */
     public String getPlanetClassification() {
         StringBuilder classification = new StringBuilder();
-        
+
         // Age classification
         classification.append(planetData.getPlanetAge().getDisplayName());
-        
-        // Thermal classification
+
+        // FIXED: More accurate thermal classification
         double temp = planetData.getAverageSurfaceTemp();
-        if (temp < -20) {
+        if (temp < -50) {
             classification.append(" Frozen");
+        } else if (temp < -10) {
+            classification.append(" Very Cold");
         } else if (temp < 10) {
             classification.append(" Cold");
         } else if (temp < 30) {
             classification.append(" Temperate");
         } else if (temp < 60) {
+            classification.append(" Warm");
+        } else if (temp < 100) {
             classification.append(" Hot");
+        } else if (temp < 200) {
+            classification.append(" Very Hot");
         } else {
             classification.append(" Scorching");
         }
-        
+
         // Composition classification
         classification.append(" ").append(config.getCrustComposition().getDisplayName());
-        
-        // Habitability classification
+
+        // FIXED: More accurate habitability classification
         if (planetData.getHabitability() > 0.7) {
             classification.append(" (Highly Habitable)");
         } else if (planetData.getHabitability() > 0.4) {
             classification.append(" (Marginally Habitable)");
+        } else if (planetData.getHabitability() > 0.1) {
+            classification.append(" (Barely Habitable)");
         } else {
             classification.append(" (Hostile)");
         }
-        
+
         return classification.toString();
     }
     

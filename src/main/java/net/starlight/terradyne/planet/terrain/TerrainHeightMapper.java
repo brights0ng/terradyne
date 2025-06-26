@@ -9,7 +9,7 @@ import net.starlight.terradyne.planet.physics.PlanetModel;
 
 /**
  * Translates mathematical noise values into Minecraft blocks and heights
- * Handles conversion between physics-based generation and Minecraft's constraints
+ * Updated for 0-256 height range (pre-1.18 style)
  */
 public class TerrainHeightMapper {
 
@@ -18,10 +18,10 @@ public class TerrainHeightMapper {
     private final BlockPaletteManager.BlockPalette blockPalette;
     private final PlanetaryNoiseSystem noiseSystem;
 
-    // Minecraft height constraints
-    private static final int MIN_WORLD_Y = -64;
-    private static final int MAX_WORLD_Y = 319;
-    private static final int WORLD_HEIGHT = MAX_WORLD_Y - MIN_WORLD_Y + 1; // 384 blocks
+    // Updated Minecraft height constraints for 0-256 range
+    private static final int MIN_WORLD_Y = 0;
+    private static final int MAX_WORLD_Y = 255;
+    private static final int WORLD_HEIGHT = 256;
 
     /**
      * Create terrain height mapper from planet model
@@ -34,10 +34,10 @@ public class TerrainHeightMapper {
     }
 
     /**
-     * Convert noise-based terrain height to Minecraft Y coordinate
+     * Convert noise-based terrain height to Minecraft Y coordinate (0-255 range)
      */
     public int getMinecraftHeight(double noiseHeight) {
-        // Clamp to Minecraft's height limits
+        // Clamp to new height limits
         int height = (int) Math.round(noiseHeight);
         return Math.max(MIN_WORLD_Y, Math.min(MAX_WORLD_Y, height));
     }
@@ -66,7 +66,7 @@ public class TerrainHeightMapper {
     }
 
     /**
-     * Generate a complete terrain column for chunk generation
+     * Generate a complete terrain column for chunk generation (0-256 range)
      */
     public TerrainColumn generateTerrainColumn(int worldX, int worldZ) {
         double terrainHeight = noiseSystem.sampleTerrainHeight(worldX, worldZ);
@@ -95,10 +95,14 @@ public class TerrainHeightMapper {
 
     /**
      * Calculate elevation factor (0.0 = sea level, 1.0 = max height)
+     * Updated for 0-256 height range
      */
     private double calculateElevationFactor(int minecraftY, double terrainHeight) {
-        double seaLevel = planetData.getSeaLevel();
+        double seaLevel = Math.max(MIN_WORLD_Y, Math.min(MAX_WORLD_Y, planetData.getSeaLevel()));
         double maxHeight = seaLevel + (planetData.getMountainScale() * 60.0);
+        
+        // Clamp max height to our world limits
+        maxHeight = Math.min(MAX_WORLD_Y, maxHeight);
 
         if (minecraftY <= seaLevel) {
             return 0.0;
@@ -138,6 +142,7 @@ public class TerrainHeightMapper {
 
     /**
      * Apply special environmental conditions to block selection
+     * Updated for 0-256 height range
      */
     private BlockState applySpecialConditions(Block baseBlock, int worldX, int worldZ, int minecraftY,
                                               double terrainHeight, double temperature, double moisture) {
@@ -162,17 +167,17 @@ public class TerrainHeightMapper {
             }
         }
 
-        // === DEPTH-BASED MODIFICATIONS ===
+        // === DEPTH-BASED MODIFICATIONS (updated for 0-256 range) ===
 
         double depthBelowSurface = terrainHeight - minecraftY;
 
-        // Deep underground -> bedrock layer
-        if (depthBelowSurface > 50) {
+        // Deep underground -> deepslate layer (adjusted for smaller height range)
+        if (depthBelowSurface > 30) {
             return Blocks.DEEPSLATE.getDefaultState();
         }
 
-        // Very deep -> actual bedrock
-        if (depthBelowSurface > 80) {
+        // Very deep -> actual bedrock (much closer to surface in 0-256 range)
+        if (depthBelowSurface > 50 || minecraftY < 5) {
             return Blocks.BEDROCK.getDefaultState();
         }
 
@@ -182,7 +187,7 @@ public class TerrainHeightMapper {
     // === UTILITY CLASSES ===
 
     /**
-     * Container for a complete vertical column of terrain blocks
+     * Container for a complete vertical column of terrain blocks (0-256 range)
      */
     public static class TerrainColumn {
         private final int worldX;
@@ -243,9 +248,9 @@ public class TerrainHeightMapper {
 
         return String.format("TerrainAnalysis{x=%d,z=%d: height=%.1f(Y=%d), tectonic=%.2f, " +
                         "temp=%.1f°C, moisture=%.2f, elevation=%.2f, erosion=%.2f, " +
-                        "habitability=%.2f, block=%s}",
+                        "habitability=%.2f, block=%s} [Height Range: %d-%d]",
                 worldX, worldZ, terrainHeight, minecraftY, tectonicActivity,
                 temperature, moisture, elevation, erosion, habitability,
-                selectedBlock.getTranslationKey());
+                selectedBlock.getTranslationKey(), MIN_WORLD_Y, MAX_WORLD_Y);
     }
 }
