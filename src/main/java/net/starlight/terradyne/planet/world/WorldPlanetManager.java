@@ -187,7 +187,6 @@ public class WorldPlanetManager {
             } else {
                 // Fallback: try the original approach if early modification didn't happen
                 Terradyne.LOGGER.info("Early modification didn't happen - trying fallback approach");
-                LevelDatModifier.modifyLevelDatIfNeeded(server, registry);
             }
 
         } catch (Exception e) {

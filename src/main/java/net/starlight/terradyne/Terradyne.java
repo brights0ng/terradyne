@@ -3,18 +3,20 @@ package net.starlight.terradyne;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
+import net.minecraft.registry.Registry;
+import net.minecraft.registry.Registries;
 import net.minecraft.server.MinecraftServer;
+import net.minecraft.util.Identifier;
 import net.starlight.terradyne.blocks.ModBlocks;
 import net.starlight.terradyne.commands.CommandRegistry;
+import net.starlight.terradyne.planet.chunk.UniversalChunkGenerator;
 import net.starlight.terradyne.planet.dimension.ModDimensionTypes;
-import net.starlight.terradyne.planet.world.WorldPlanetManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Main mod class - simplified to focus on core initialization
- * All planet management moved to WorldPlanetManager
- * All commands moved to CommandRegistry
+ * Main mod class - SIMPLIFIED for data generation approach
+ * No more runtime datapack generation - planets are defined via data generation
  */
 public class Terradyne implements ModInitializer {
 	public static final String MOD_ID = "terradyne";
@@ -26,6 +28,7 @@ public class Terradyne implements ModInitializer {
 
 		// Initialize core systems
 		registerBlocks();
+		registerChunkGenerators();
 		initializeTerrainSystem();
 		registerCommands();
 		initializeRegistryKeys();
@@ -33,6 +36,20 @@ public class Terradyne implements ModInitializer {
 
 		LOGGER.info("✅ Terradyne initialized successfully!");
 		logSystemStatus();
+	}
+
+	private void registerChunkGenerators() {
+		try {
+			Registry.register(
+					Registries.CHUNK_GENERATOR,
+					new Identifier(MOD_ID, "universal"),
+					UniversalChunkGenerator.CODEC
+			);
+			LOGGER.info("✓ Chunk generator 'terradyne:universal' registered");
+		} catch (Exception e) {
+			LOGGER.error("❌ Failed to register chunk generator!", e);
+			throw new RuntimeException("Critical chunk generator registration failure", e);
+		}
 	}
 
 	private void initializeTerrainSystem() {
@@ -53,63 +70,58 @@ public class Terradyne implements ModInitializer {
 	}
 
 	/**
-	 * Register server lifecycle events for world-based planet management
+	 * Register server lifecycle events - SIMPLIFIED (no runtime generation)
 	 */
 	private void registerServerEvents() {
-		// Hook into world loading before server starts
-		ServerLifecycleEvents.SERVER_STARTING.register(this::onServerStarting);
+		// Just validate after server starts - no runtime generation needed
 		ServerLifecycleEvents.SERVER_STARTED.register(this::onServerStarted);
-
-		// NEW: Hook into world loading events (earlier than server starting)
-		net.fabricmc.fabric.api.event.lifecycle.v1.ServerWorldEvents.LOAD.register(this::onWorldLoad);
 
 		LOGGER.info("✓ Server lifecycle events registered");
 	}
 
 	/**
-	 * Handle world loading - modify level.dat before server fully starts
-	 * This fires when each world is loaded, including at server startup
-	 */
-	private void onWorldLoad(MinecraftServer server, net.minecraft.server.world.ServerWorld world) {
-		// Only modify level.dat for overworld loading (first world loaded)
-		if (world.getRegistryKey().equals(net.minecraft.world.World.OVERWORLD)) {
-			LOGGER.info("=== OVERWORLD LOADING - CHECKING LEVEL.DAT ===");
-
-			try {
-				// Try to modify level.dat if this is a new world
-				// This should happen before other dimensions are loaded
-				WorldPlanetManager.attemptEarlyLevelDatModification(server);
-			} catch (Exception e) {
-				LOGGER.error("❌ Failed to modify level.dat during world loading", e);
-			}
-		}
-	}
-
-	/**
-	 * Handle server starting - register dimensions for new worlds
-	 * This happens BEFORE Minecraft finalizes level.dat
-	 */
-	private void onServerStarting(MinecraftServer server) {
-		LOGGER.info("=== SERVER STARTING - WORLD INITIALIZATION ===");
-
-		try {
-			WorldPlanetManager.initializeForServer(server);
-		} catch (Exception e) {
-			LOGGER.error("❌ World initialization failed", e);
-		}
-	}
-
-	/**
-	 * Handle server started - validate existing worlds
-	 * This happens AFTER all dimensions are loaded
+	 * Validate planets after server startup
 	 */
 	private void onServerStarted(MinecraftServer server) {
 		LOGGER.info("=== SERVER STARTED - VALIDATION ===");
 
 		try {
-			WorldPlanetManager.validateAfterStartup(server);
+			validateDimensionsLoaded(server);
 		} catch (Exception e) {
 			LOGGER.error("❌ Post-startup validation failed", e);
+		}
+	}
+
+	/**
+	 * Validate that our dimensions were loaded from data generation
+	 */
+	private void validateDimensionsLoaded(MinecraftServer server) {
+		LOGGER.info("Validating dimensions loaded from data generation...");
+
+		int terradyneDimensions = 0;
+		for (var world : server.getWorlds()) {
+			String dimensionId = world.getRegistryKey().getValue().toString();
+			if (dimensionId.startsWith("terradyne:")) {
+				String planetName = dimensionId.substring("terradyne:".length());
+
+				// Check if it's a hardcoded planet
+				boolean isHardcoded = net.starlight.terradyne.datagen.HardcodedPlanets.isHardcodedPlanet(planetName);
+
+				LOGGER.info("✅ Planet dimension loaded: {} ({})",
+						dimensionId, isHardcoded ? "HARDCODED" : "USER-DEFINED");
+				terradyneDimensions++;
+			}
+		}
+
+		if (terradyneDimensions > 0) {
+			LOGGER.info("✅ Successfully loaded {} Terradyne planet dimensions", terradyneDimensions);
+			LOGGER.info("Hardcoded planets available: {}",
+					net.starlight.terradyne.datagen.HardcodedPlanets.getAllPlanetNames());
+		} else {
+			LOGGER.warn("⚠️  No Terradyne dimensions found");
+			LOGGER.info("Expected hardcoded planets: {}",
+					net.starlight.terradyne.datagen.HardcodedPlanets.getAllPlanetNames());
+			LOGGER.info("Make sure you ran 'gradle runDatagen' to generate dimension files");
 		}
 	}
 
@@ -124,16 +136,20 @@ public class Terradyne implements ModInitializer {
 
 	private void logSystemStatus() {
 		LOGGER.info("=== SYSTEM STATUS ===");
-		LOGGER.info("• Generation Mode: WORLD-CREATION-BASED");
+		LOGGER.info("• Generation Mode: DATA-GENERATION-BASED");
 		LOGGER.info("• Physics System: ACTIVE");
-		LOGGER.info("• Planet Safety: EXISTING PLANETS PROTECTED");
-		LOGGER.info("• Config Location: saves/[world]/terradyne/planets/*.json");
-		LOGGER.info("• Dimension Types: Data-Generated JSON");
+		LOGGER.info("• Chunk Generator: terradyne:universal REGISTERED");
+		LOGGER.info("• Planet Definitions: HARDCODED + USER-CUSTOMIZABLE");
+		LOGGER.info("• Hardcoded Planets: {}", net.starlight.terradyne.datagen.HardcodedPlanets.getAllPlanetNames());
+		LOGGER.info("• User Config Location: saves/[world]/terradyne/planets/*.json");
+		LOGGER.info("• Generated Files: src/generated/resources/data/terradyne/dimension/");
 		LOGGER.info("");
-		LOGGER.info("🌍 Add planet configs to your world's terradyne/planets/ folder");
-		LOGGER.info("🔄 Restart server to register new planets in NEW worlds");
+		LOGGER.info("🔧 Run 'gradle runDatagen' to generate dimension files");
 		LOGGER.info("🚀 Use '/terradyne list' to see available planets");
 		LOGGER.info("🎮 Use '/terradyne teleport <planet>' to explore");
 		LOGGER.info("📊 Use '/terradyne info' for detailed planet information");
+		LOGGER.info("");
+		LOGGER.info("🌍 Hardcoded planets are always available!");
+		LOGGER.info("📝 Add custom configs to terradyne/planets/ for user planets");
 	}
 }

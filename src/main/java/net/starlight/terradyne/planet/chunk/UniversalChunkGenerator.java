@@ -21,11 +21,15 @@ import net.minecraft.world.gen.chunk.VerticalBlockSample;
 import net.minecraft.world.gen.noise.NoiseConfig;
 
 import net.starlight.terradyne.Terradyne;
-import net.starlight.terradyne.planet.dimension.PlanetDimensionManager;
+import net.starlight.terradyne.datagen.HardcodedPlanets;
+import net.starlight.terradyne.planet.physics.PlanetConfig;
 import net.starlight.terradyne.planet.physics.PlanetModel;
 import net.starlight.terradyne.planet.world.WorldPlanetManager;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 
@@ -50,6 +54,7 @@ public class UniversalChunkGenerator extends ChunkGenerator {
     private String planetName;
     private PlanetModel planetModel; // Loaded lazily from server context
 
+
     /**
      * Constructor for direct creation (used by WorldPlanetManager)
      */
@@ -59,7 +64,7 @@ public class UniversalChunkGenerator extends ChunkGenerator {
         this.planetName = planetModel != null ? planetModel.getConfig().getPlanetName() : "";
 
         if (planetModel != null) {
-            Terradyne.LOGGER.info("=== UNIVERSAL CHUNK GENERATOR INITIALIZED ===");
+            Terradyne.LOGGER.info("=== UNIVERSAL CHUNK GENERATOR INITIALIZED (DIRECT) ===");
             Terradyne.LOGGER.info("Planet: {}", planetModel.getConfig().getPlanetName());
             Terradyne.LOGGER.info("Classification: {}", planetModel.getPlanetClassification());
             Terradyne.LOGGER.info("Generation: PHYSICS-BASED");
@@ -70,39 +75,256 @@ public class UniversalChunkGenerator extends ChunkGenerator {
         }
     }
 
+
     /**
-     * Constructor for codec deserialization
+     * Constructor for codec deserialization - IMPROVED to use hardcoded planets first
+     * Falls back to file-based loading for user customization
      */
     private static UniversalChunkGenerator fromCodec(BiomeSource biomeSource, String planetName) {
-        // Create without planet model - will be loaded lazily when needed
-        UniversalChunkGenerator generator = new UniversalChunkGenerator(null, biomeSource);
-        generator.planetName = planetName;
-        return generator;
-    }
+        Terradyne.LOGGER.info("Creating UniversalChunkGenerator for planet: {}", planetName);
 
-    /**
-     * Lazy load planet model from server context
-     */
-    private PlanetModel getPlanetModel(MinecraftServer server) {
-        if (planetModel == null && !planetName.isEmpty() && server != null) {
-            planetModel = WorldPlanetManager.getPlanetModel(server, planetName);
-            if (planetModel != null) {
-                Terradyne.LOGGER.debug("Lazy-loaded planet model for: {}", planetName);
-            } else {
-                Terradyne.LOGGER.warn("Failed to lazy-load planet model for: {}", planetName);
+        try {
+            PlanetConfig planetConfig = null;
+
+            // Step 1: Try hardcoded planets first
+            if (HardcodedPlanets.isHardcodedPlanet(planetName)) {
+                planetConfig = HardcodedPlanets.getPlanet(planetName);
+                Terradyne.LOGGER.info("✅ Using hardcoded planet definition: {}", planetName);
             }
+
+            // Step 2: Fall back to file-based loading for user customization
+            if (planetConfig == null) {
+                planetConfig = loadPlanetConfigFromWorld(planetName);
+                if (planetConfig != null) {
+                    Terradyne.LOGGER.info("✅ Using user-defined planet config: {}", planetName);
+                }
+            }
+
+            // Step 3: Create planet model if we found a config
+            if (planetConfig != null) {
+                PlanetModel planetModel = new PlanetModel(planetConfig);
+
+                Terradyne.LOGGER.info("✅ Successfully created planet model: {} ({})",
+                        planetName, planetModel.getPlanetClassification());
+                return new UniversalChunkGenerator(planetModel, biomeSource);
+
+            } else {
+                Terradyne.LOGGER.error("❌ No planet definition found for: {}", planetName);
+                Terradyne.LOGGER.error("Available hardcoded planets: {}", HardcodedPlanets.getAllPlanetNames());
+
+                // Create generator without model - will use fallback terrain
+                UniversalChunkGenerator generator = new UniversalChunkGenerator(null, biomeSource);
+                generator.planetName = planetName;
+                return generator;
+            }
+
+        } catch (Exception e) {
+            Terradyne.LOGGER.error("❌ Failed to create chunk generator for '{}': {}", planetName, e.getMessage());
+
+            // Fallback generator
+            UniversalChunkGenerator generator = new UniversalChunkGenerator(null, biomeSource);
+            generator.planetName = planetName;
+            return generator;
         }
-        return planetModel;
     }
 
     /**
-     * Get server instance from chunk region
-     * Note: Direct chunk->server access is limited, we'll use other approaches
+     * Load planet config directly from world directory
+     * Works on both client and server, eliminates timing issues
      */
-    private MinecraftServer getServerFromContext(Chunk chunk) {
-        // In Fabric 1.20.1, chunks don't directly expose world/server
-        // We'll rely on the lazy loading approach instead
-        return null;
+    private static PlanetConfig loadPlanetConfigFromWorld(String planetName) {
+        try {
+            // Get the current world directory - this is tricky in codec context
+            // We need to find the world save directory
+            Path worldDir = getCurrentWorldDirectory();
+            if (worldDir == null) {
+                Terradyne.LOGGER.warn("Could not determine world directory for planet config loading");
+                return null;
+            }
+
+            Path planetsDir = worldDir.resolve("terradyne").resolve("planets");
+
+            if (!Files.exists(planetsDir)) {
+                Terradyne.LOGGER.warn("Planets config directory not found: {}", planetsDir);
+                return null;
+            }
+
+            // Normalize planet name for file lookup
+            String normalizedName = planetName.toLowerCase().replace(" ", "_");
+
+            // Try to find the config file
+            Path configFile = planetsDir.resolve(normalizedName + ".json");
+            if (!Files.exists(configFile)) {
+                // Try with original name
+                configFile = planetsDir.resolve(planetName + ".json");
+                if (!Files.exists(configFile)) {
+                    Terradyne.LOGGER.warn("Planet config file not found: {} or {}",
+                            normalizedName + ".json", planetName + ".json");
+                    return null;
+                }
+            }
+
+            // Load the specific config file
+            String jsonContent = Files.readString(configFile);
+
+            // Parse JSON manually (simplified version of PlanetConfigLoader logic)
+            PlanetConfig config = parseConfigFromJson(jsonContent, planetName);
+
+            if (config != null) {
+                Terradyne.LOGGER.debug("Successfully loaded planet config from: {}", configFile);
+            }
+
+            return config;
+
+        } catch (Exception e) {
+            Terradyne.LOGGER.error("Failed to load planet config for '{}': {}", planetName, e.getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * Get current world directory - works in codec context
+     */
+    private static Path getCurrentWorldDirectory() {
+        try {
+            // Try to get world directory from system properties or working directory
+            // This is a common approach for Minecraft mods
+
+            // Method 1: Check if we're running in a server context
+            String serverDir = System.getProperty("user.dir");
+            if (serverDir != null) {
+                Path serverPath = Path.of(serverDir);
+
+                // Look for world directories
+                Path[] possiblePaths = {
+                        serverPath.resolve("world"),  // Default server world
+                        serverPath.resolve("saves").resolve("New World"), // Common dev world name
+                        serverPath  // Current directory might be the world
+                };
+
+                for (Path path : possiblePaths) {
+                    if (Files.exists(path.resolve("level.dat"))) {
+                        Terradyne.LOGGER.debug("Found world directory: {}", path);
+                        return path;
+                    }
+                }
+            }
+
+            // Method 2: Try to find any world with terradyne configs
+            Path userDir = Path.of(System.getProperty("user.dir"));
+            try (var stream = Files.walk(userDir, 3)) { // Search up to 3 levels deep
+                var worldDirs = stream
+                        .filter(Files::isDirectory)
+                        .filter(path -> Files.exists(path.resolve("level.dat")))
+                        .filter(path -> Files.exists(path.resolve("terradyne").resolve("planets")))
+                        .findFirst();
+
+                if (worldDirs.isPresent()) {
+                    Terradyne.LOGGER.debug("Found world with terradyne configs: {}", worldDirs.get());
+                    return worldDirs.get();
+                }
+            } catch (Exception e) {
+                // Continue to fallback
+            }
+
+            Terradyne.LOGGER.warn("Could not auto-detect world directory");
+            return null;
+
+        } catch (Exception e) {
+            Terradyne.LOGGER.error("Error detecting world directory: {}", e.getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * Simple JSON parsing for planet config (simplified version)
+     */
+    private static PlanetConfig parseConfigFromJson(String jsonContent, String planetName) {
+        try {
+            // Use Gson to parse the JSON
+            com.google.gson.Gson gson = new com.google.gson.Gson();
+
+            // Parse to map first for easier handling
+            @SuppressWarnings("unchecked")
+            Map<String, Object> jsonMap = gson.fromJson(jsonContent, Map.class);
+
+            // Extract basic values with defaults
+            String name = getStringValue(jsonMap, "name", planetName);
+            long seed = name.hashCode(); // Generate seed from name
+
+            // Create config with Earth-like defaults
+            PlanetConfig config = new PlanetConfig(name, seed);
+
+            // Apply values with safe parsing
+            if (jsonMap.containsKey("circumference")) {
+                config.setCircumference(getIntValue(jsonMap, "circumference", 40000));
+            }
+            if (jsonMap.containsKey("distanceFromStar")) {
+                config.setDistanceFromStar(getLongValue(jsonMap, "distanceFromStar", 150));
+            }
+            if (jsonMap.containsKey("tectonicActivity")) {
+                config.setTectonicActivity(getDoubleValue(jsonMap, "tectonicActivity", 0.6));
+            }
+            if (jsonMap.containsKey("waterContent")) {
+                config.setWaterContent(getDoubleValue(jsonMap, "waterContent", 0.7));
+            }
+
+            // Parse enums safely
+            if (jsonMap.containsKey("crustComposition")) {
+                try {
+                    String crustStr = getStringValue(jsonMap, "crustComposition", "SILICATE");
+                    config.setCrustComposition(net.starlight.terradyne.planet.physics.CrustComposition.valueOf(crustStr.toUpperCase()));
+                } catch (Exception e) {
+                    Terradyne.LOGGER.warn("Invalid crust composition, using default: {}", e.getMessage());
+                }
+            }
+
+            if (jsonMap.containsKey("atmosphereComposition")) {
+                try {
+                    String atmoStr = getStringValue(jsonMap, "atmosphereComposition", "OXYGEN_RICH");
+                    config.setAtmosphereComposition(net.starlight.terradyne.planet.physics.AtmosphereComposition.valueOf(atmoStr.toUpperCase()));
+                } catch (Exception e) {
+                    Terradyne.LOGGER.warn("Invalid atmosphere composition, using default: {}", e.getMessage());
+                }
+            }
+
+            Terradyne.LOGGER.debug("Parsed planet config: {}", config);
+            return config;
+
+        } catch (Exception e) {
+            Terradyne.LOGGER.error("Failed to parse planet config JSON: {}", e.getMessage());
+            return null;
+        }
+    }
+
+    // Helper methods for safe JSON value extraction
+    private static String getStringValue(Map<String, Object> map, String key, String defaultValue) {
+        Object value = map.get(key);
+        return value instanceof String ? (String) value : defaultValue;
+    }
+
+    private static int getIntValue(Map<String, Object> map, String key, int defaultValue) {
+        Object value = map.get(key);
+        if (value instanceof Number) {
+            return ((Number) value).intValue();
+        }
+        return defaultValue;
+    }
+
+    private static long getLongValue(Map<String, Object> map, String key, long defaultValue) {
+        Object value = map.get(key);
+        if (value instanceof Number) {
+            return ((Number) value).longValue();
+        }
+        return defaultValue;
+    }
+
+    private static double getDoubleValue(Map<String, Object> map, String key, double defaultValue) {
+        Object value = map.get(key);
+        if (value instanceof Number) {
+            return ((Number) value).doubleValue();
+        }
+        return defaultValue;
     }
 
     @Override
@@ -121,13 +343,12 @@ public class UniversalChunkGenerator extends ChunkGenerator {
     }
 
     /**
-     * Main terrain generation method - uses physics system
+     * Main terrain generation method - uses physics system (FIXED)
      */
     private void generateTerrain(Chunk chunk, NoiseConfig noiseConfig) {
-        MinecraftServer server = getServerFromContext(chunk);
-        PlanetModel currentPlanetModel = getPlanetModel(server);
-
-        if (currentPlanetModel == null) {
+        // No more lazy loading - planet model should be loaded from codec
+        if (planetModel == null) {
+            Terradyne.LOGGER.warn("No planet model available for chunk {} - using fallback terrain", chunk.getPos());
             generateFallbackTerrain(chunk);
             return;
         }
@@ -136,7 +357,7 @@ public class UniversalChunkGenerator extends ChunkGenerator {
             ChunkPos chunkPos = chunk.getPos();
 
             Terradyne.LOGGER.debug("Generating physics-based terrain for chunk {} on planet {}",
-                    chunkPos, currentPlanetModel.getConfig().getPlanetName());
+                    chunkPos, planetModel.getConfig().getPlanetName());
 
             // Generate terrain using physics system
             for (int x = 0; x < 16; x++) {
@@ -145,7 +366,7 @@ public class UniversalChunkGenerator extends ChunkGenerator {
                     int worldZ = chunkPos.getStartZ() + z;
 
                     // Generate complete terrain column using physics - adapted for 0-256 range
-                    generateTerrainColumn(chunk, x, z, worldX, worldZ, currentPlanetModel);
+                    generateTerrainColumn(chunk, x, z, worldX, worldZ, planetModel);
                 }
             }
 
@@ -155,6 +376,91 @@ public class UniversalChunkGenerator extends ChunkGenerator {
             Terradyne.LOGGER.error("Critical error in physics-based terrain generation for chunk {}: {}",
                     chunk.getPos(), e.getMessage(), e);
             generateFallbackTerrain(chunk);
+        }
+    }
+
+// UPDATE these methods to not try lazy loading:
+
+    @Override
+    public int getSeaLevel() {
+        if (planetModel != null) {
+            return Math.max(MIN_WORLD_Y, Math.min(MAX_WORLD_Y, planetModel.getPlanetData().getSeaLevel()));
+        }
+        return 63; // Minecraft default fallback
+    }
+
+    @Override
+    public int getHeight(int x, int z, Heightmap.Type heightmap, HeightLimitView world, NoiseConfig noiseConfig) {
+        if (planetModel == null) {
+            return 120; // Fallback height for 0-256 range
+        }
+
+        double terrainHeight = planetModel.getTerrainHeight(x, z);
+        return Math.max(MIN_WORLD_Y, Math.min(MAX_WORLD_Y, (int) terrainHeight));
+    }
+
+    @Override
+    public VerticalBlockSample getColumnSample(int x, int z, HeightLimitView world, NoiseConfig noiseConfig) {
+        if (planetModel == null) {
+            // Fallback column for 0-256 range
+            BlockState[] column = new BlockState[WORLD_HEIGHT];
+            for (int y = 0; y < WORLD_HEIGHT; y++) {
+                int worldY = MIN_WORLD_Y + y;
+                if (worldY <= 120) {
+                    column[y] = Blocks.STONE.getDefaultState();
+                } else {
+                    column[y] = Blocks.AIR.getDefaultState();
+                }
+            }
+            return new VerticalBlockSample(MIN_WORLD_Y, column);
+        }
+
+        // Generate physics-based column for 0-256 range
+        BlockState[] column = new BlockState[WORLD_HEIGHT];
+        double terrainHeight = planetModel.getTerrainHeight(x, z);
+        int surfaceY = Math.max(MIN_WORLD_Y, Math.min(MAX_WORLD_Y, (int) terrainHeight));
+        int seaLevel = Math.max(MIN_WORLD_Y, Math.min(MAX_WORLD_Y, planetModel.getPlanetData().getSeaLevel()));
+
+        for (int y = 0; y < WORLD_HEIGHT; y++) {
+            int worldY = MIN_WORLD_Y + y;
+
+            if (worldY <= surfaceY) {
+                column[y] = planetModel.getTerrainBlockState(x, z, worldY);
+            } else if (worldY <= seaLevel && planetModel.getPlanetData().hasLiquidWater()) {
+                column[y] = Blocks.WATER.getDefaultState();
+            } else {
+                column[y] = Blocks.AIR.getDefaultState();
+            }
+        }
+
+        return new VerticalBlockSample(MIN_WORLD_Y, column);
+    }
+
+    // UPDATE debug method:
+    @Override
+    public void getDebugHudText(List<String> text, NoiseConfig noiseConfig, BlockPos pos) {
+        text.add("=== TERRADYNE PHYSICS-BASED GENERATION ===");
+        text.add("Height Range: Y " + MIN_WORLD_Y + " to " + MAX_WORLD_Y);
+
+        if (planetModel != null) {
+            text.add("Planet: " + planetModel.getConfig().getPlanetName());
+            text.add("Classification: " + planetModel.getPlanetClassification());
+            text.add("Physics Status: " + (planetModel.isValid() ? "ACTIVE" : "ERROR"));
+
+            text.add("");
+            text.add("=== TERRAIN ANALYSIS ===");
+            try {
+                text.add(planetModel.analyzeTerrainAt(pos.getX(), pos.getZ()));
+            } catch (Exception e) {
+                text.add("Error analyzing terrain: " + e.getMessage());
+            }
+
+            // Add more debug info...
+
+        } else {
+            text.add("No planet model loaded");
+            text.add("Planet Name: " + planetName);
+            text.add("Status: FALLBACK GENERATION");
         }
     }
 
@@ -244,130 +550,11 @@ public class UniversalChunkGenerator extends ChunkGenerator {
     }
 
     @Override
-    public int getSeaLevel() {
-        MinecraftServer server = null; // We don't have server context in this method
-        PlanetModel currentPlanetModel = getPlanetModel(server);
-
-        if (currentPlanetModel != null) {
-            // Clamp sea level to our height range
-            return Math.max(MIN_WORLD_Y, Math.min(MAX_WORLD_Y, currentPlanetModel.getPlanetData().getSeaLevel()));
-        }
-        return 63; // Minecraft default fallback (adjusted for 0-256)
-    }
-
-    @Override
     public int getMinimumY() {
         return MIN_WORLD_Y; // Y=0
     }
 
-    @Override
-    public int getHeight(int x, int z, Heightmap.Type heightmap, HeightLimitView world, NoiseConfig noiseConfig) {
-        MinecraftServer server = null; // We don't have server context in this method
-        PlanetModel currentPlanetModel = getPlanetModel(server);
-
-        if (currentPlanetModel == null) {
-            return 120; // Fallback height for 0-256 range
-        }
-
-        double terrainHeight = currentPlanetModel.getTerrainHeight(x, z);
-        return Math.max(MIN_WORLD_Y, Math.min(MAX_WORLD_Y, (int) terrainHeight));
-    }
-
-    @Override
-    public VerticalBlockSample getColumnSample(int x, int z, HeightLimitView world, NoiseConfig noiseConfig) {
-        MinecraftServer server = null; // We don't have server context in this method
-        PlanetModel currentPlanetModel = getPlanetModel(server);
-
-        if (currentPlanetModel == null) {
-            // Fallback column for 0-256 range
-            BlockState[] column = new BlockState[WORLD_HEIGHT];
-            for (int y = 0; y < WORLD_HEIGHT; y++) {
-                int worldY = MIN_WORLD_Y + y;
-                if (worldY <= 120) {
-                    column[y] = Blocks.STONE.getDefaultState();
-                } else {
-                    column[y] = Blocks.AIR.getDefaultState();
-                }
-            }
-            return new VerticalBlockSample(MIN_WORLD_Y, column);
-        }
-
-        // Generate physics-based column for 0-256 range
-        BlockState[] column = new BlockState[WORLD_HEIGHT];
-        double terrainHeight = currentPlanetModel.getTerrainHeight(x, z);
-        int surfaceY = Math.max(MIN_WORLD_Y, Math.min(MAX_WORLD_Y, (int) terrainHeight));
-        int seaLevel = Math.max(MIN_WORLD_Y, Math.min(MAX_WORLD_Y, currentPlanetModel.getPlanetData().getSeaLevel()));
-
-        for (int y = 0; y < WORLD_HEIGHT; y++) {
-            int worldY = MIN_WORLD_Y + y;
-
-            if (worldY <= surfaceY) {
-                column[y] = currentPlanetModel.getTerrainBlockState(x, z, worldY);
-            } else if (worldY <= seaLevel && currentPlanetModel.getPlanetData().hasLiquidWater()) {
-                column[y] = Blocks.WATER.getDefaultState();
-            } else {
-                column[y] = Blocks.AIR.getDefaultState();
-            }
-        }
-
-        return new VerticalBlockSample(MIN_WORLD_Y, column);
-    }
-
-    @Override
-    public void getDebugHudText(List<String> text, NoiseConfig noiseConfig, BlockPos pos) {
-        text.add("=== TERRADYNE PHYSICS-BASED GENERATION ===");
-        text.add("Height Range: Y " + MIN_WORLD_Y + " to " + MAX_WORLD_Y);
-
-        MinecraftServer server = null; // We don't have server context in this method
-        PlanetModel currentPlanetModel = getPlanetModel(server);
-
-        if (currentPlanetModel != null) {
-            text.add("Planet: " + currentPlanetModel.getConfig().getPlanetName());
-            text.add("Classification: " + currentPlanetModel.getPlanetClassification());
-            text.add("Physics Status: " + (currentPlanetModel.isValid() ? "ACTIVE" : "ERROR"));
-
-            text.add("");
-            text.add("=== TERRAIN ANALYSIS ===");
-            try {
-                text.add(currentPlanetModel.analyzeTerrainAt(pos.getX(), pos.getZ()));
-            } catch (Exception e) {
-                text.add("Error analyzing terrain: " + e.getMessage());
-            }
-
-            text.add("");
-            text.add("=== NOISE SAMPLING ===");
-            try {
-                text.add(currentPlanetModel.sampleAllNoiseAt(pos.getX(), pos.getZ()));
-            } catch (Exception e) {
-                text.add("Error sampling noise: " + e.getMessage());
-            }
-
-            text.add("");
-            text.add("=== PHYSICS DATA ===");
-            try {
-                text.add("Temperature: " + String.format("%.1f°C", currentPlanetModel.getTemperature(pos.getX(), pos.getZ())));
-                text.add("Moisture: " + String.format("%.2f", currentPlanetModel.getMoisture(pos.getX(), pos.getZ())));
-                text.add("Tectonic Activity: " + String.format("%.2f", currentPlanetModel.getTectonicActivity(pos.getX(), pos.getZ())));
-                text.add("Sea Level: Y=" + getSeaLevel());
-                text.add("Habitability: " + String.format("%.2f", currentPlanetModel.getPlanetData().getHabitability()));
-            } catch (Exception e) {
-                text.add("Error reading physics data: " + e.getMessage());
-            }
-
-        } else {
-            text.add("No planet model loaded");
-            text.add("Planet Name: " + planetName);
-            text.add("Status: FALLBACK GENERATION");
-            text.add("");
-            text.add("This may indicate:");
-            text.add("- Planet not properly registered");
-            text.add("- World loaded before planet creation");
-            text.add("- Server context unavailable");
-        }
-    }
-
     // === ACCESSORS ===
-
     /**
      * Get the planet name
      */
