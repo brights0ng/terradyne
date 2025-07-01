@@ -15,7 +15,6 @@ import net.minecraft.util.Formatting;
 import net.starlight.terradyne.planet.config.PlanetConfigLoader;
 import net.starlight.terradyne.planet.dimension.PlanetDimensionManager;
 import net.starlight.terradyne.planet.physics.PlanetConfig;
-import net.starlight.terradyne.planet.world.WorldPlanetManager;
 
 /**
  * Central command registry for all Terradyne commands
@@ -221,26 +220,6 @@ public class CommandRegistry {
     private static int debugRegistryCommand(CommandContext<ServerCommandSource> context) {
         ServerCommandSource source = context.getSource();
 
-        String registryInfo = WorldPlanetManager.getRegistryInfo(source.getServer());
-        String[] lines = registryInfo.split("\n");
-
-        for (String line : lines) {
-            if (line.trim().isEmpty()) continue;
-
-            MutableText text;
-            if (line.startsWith("===")) {
-                text = Text.literal(line).formatted(Formatting.YELLOW, Formatting.BOLD);
-            } else if (line.contains("[PROTECTED]")) {
-                text = Text.literal(line).formatted(Formatting.GREEN);
-            } else if (line.startsWith("  ")) {
-                text = Text.literal(line).formatted(Formatting.GRAY);
-            } else {
-                text = Text.literal(line).formatted(Formatting.WHITE);
-            }
-
-            source.sendFeedback(() -> text, false);
-        }
-
         return 1;
     }
 
@@ -279,7 +258,6 @@ public class CommandRegistry {
         ServerCommandSource source = context.getSource();
 
         try {
-            WorldPlanetManager.reloadConfigs(source.getServer());
             source.sendFeedback(() -> Text.literal("✅ Planet configurations reloaded")
                     .formatted(Formatting.GREEN), false);
             return 1;
