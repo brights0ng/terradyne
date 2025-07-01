@@ -2,9 +2,9 @@
 	"required": true,
 	"package": "net.starlight.terradyne.mixin",
 	"compatibilityLevel": "JAVA_17",
-	"mixins": [
-      "ExampleMixin"
-	],
+	"mixins": [],
+	"client": [],
+	"server": [],
 	"injectors": {
 		"defaultRequire": 1
 	}

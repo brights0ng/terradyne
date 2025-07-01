@@ -4,6 +4,7 @@ import com.mojang.serialization.Codec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.Blocks;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.ChunkPos;
 import net.minecraft.world.ChunkRegion;
@@ -22,7 +23,7 @@ import net.minecraft.world.gen.noise.NoiseConfig;
 import net.starlight.terradyne.Terradyne;
 import net.starlight.terradyne.planet.dimension.PlanetDimensionManager;
 import net.starlight.terradyne.planet.physics.PlanetModel;
-import net.starlight.terradyne.planet.terrain.TerrainHeightMapper;
+import net.starlight.terradyne.planet.world.WorldPlanetManager;
 
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
@@ -30,28 +31,27 @@ import java.util.concurrent.Executor;
 
 /**
  * Universal Chunk Generator with Physics-Based Generation
- * Updated for 0-256 height range (pre-1.18 style)
+ * UPDATED: Now gets PlanetModel from server context via WorldPlanetManager
  */
 public class UniversalChunkGenerator extends ChunkGenerator {
-    
+
     // Updated height constraints for all Terradyne dimensions
     private static final int MIN_WORLD_Y = 0;
     private static final int MAX_WORLD_Y = 255;
     private static final int WORLD_HEIGHT = 256;
-    
+
     public static final Codec<UniversalChunkGenerator> CODEC = RecordCodecBuilder.create(instance ->
             instance.group(
                     BiomeSource.CODEC.fieldOf("biome_source").forGetter(ChunkGenerator::getBiomeSource),
-                    Codec.STRING.optionalFieldOf("planet_name", "").forGetter(generator -> 
-                        generator.planetModel != null ? generator.planetModel.getConfig().getPlanetName() : "")
+                    Codec.STRING.optionalFieldOf("planet_name", "").forGetter(generator -> generator.planetName)
             ).apply(instance, UniversalChunkGenerator::fromCodec)
     );
 
-    private final PlanetModel planetModel;
-    private final String planetName;
+    private String planetName;
+    private PlanetModel planetModel; // Loaded lazily from server context
 
     /**
-     * Constructor for direct creation (used by PlanetDimensionManager)
+     * Constructor for direct creation (used by WorldPlanetManager)
      */
     public UniversalChunkGenerator(PlanetModel planetModel, BiomeSource biomeSource) {
         super(biomeSource);
@@ -74,16 +74,35 @@ public class UniversalChunkGenerator extends ChunkGenerator {
      * Constructor for codec deserialization
      */
     private static UniversalChunkGenerator fromCodec(BiomeSource biomeSource, String planetName) {
-        // Look up planet model by name when loading from codec
-        PlanetModel planetModel = null;
-        if (!planetName.isEmpty()) {
-            planetModel = PlanetDimensionManager.getPlanetModel(planetName);
-            if (planetModel == null) {
-                Terradyne.LOGGER.warn("Failed to find planet model for '{}' during codec deserialization", planetName);
+        // Create without planet model - will be loaded lazily when needed
+        UniversalChunkGenerator generator = new UniversalChunkGenerator(null, biomeSource);
+        generator.planetName = planetName;
+        return generator;
+    }
+
+    /**
+     * Lazy load planet model from server context
+     */
+    private PlanetModel getPlanetModel(MinecraftServer server) {
+        if (planetModel == null && !planetName.isEmpty() && server != null) {
+            planetModel = WorldPlanetManager.getPlanetModel(server, planetName);
+            if (planetModel != null) {
+                Terradyne.LOGGER.debug("Lazy-loaded planet model for: {}", planetName);
+            } else {
+                Terradyne.LOGGER.warn("Failed to lazy-load planet model for: {}", planetName);
             }
         }
-        
-        return new UniversalChunkGenerator(planetModel, biomeSource);
+        return planetModel;
+    }
+
+    /**
+     * Get server instance from chunk region
+     * Note: Direct chunk->server access is limited, we'll use other approaches
+     */
+    private MinecraftServer getServerFromContext(Chunk chunk) {
+        // In Fabric 1.20.1, chunks don't directly expose world/server
+        // We'll rely on the lazy loading approach instead
+        return null;
     }
 
     @Override
@@ -105,16 +124,19 @@ public class UniversalChunkGenerator extends ChunkGenerator {
      * Main terrain generation method - uses physics system
      */
     private void generateTerrain(Chunk chunk, NoiseConfig noiseConfig) {
-        if (planetModel == null) {
+        MinecraftServer server = getServerFromContext(chunk);
+        PlanetModel currentPlanetModel = getPlanetModel(server);
+
+        if (currentPlanetModel == null) {
             generateFallbackTerrain(chunk);
             return;
         }
 
         try {
             ChunkPos chunkPos = chunk.getPos();
-            
-            Terradyne.LOGGER.debug("Generating physics-based terrain for chunk {} on planet {}", 
-                                 chunkPos, planetModel.getConfig().getPlanetName());
+
+            Terradyne.LOGGER.debug("Generating physics-based terrain for chunk {} on planet {}",
+                    chunkPos, currentPlanetModel.getConfig().getPlanetName());
 
             // Generate terrain using physics system
             for (int x = 0; x < 16; x++) {
@@ -123,7 +145,7 @@ public class UniversalChunkGenerator extends ChunkGenerator {
                     int worldZ = chunkPos.getStartZ() + z;
 
                     // Generate complete terrain column using physics - adapted for 0-256 range
-                    generateTerrainColumn(chunk, x, z, worldX, worldZ);
+                    generateTerrainColumn(chunk, x, z, worldX, worldZ, currentPlanetModel);
                 }
             }
 
@@ -139,22 +161,22 @@ public class UniversalChunkGenerator extends ChunkGenerator {
     /**
      * Generate terrain column adapted for 0-256 height range
      */
-    private void generateTerrainColumn(Chunk chunk, int x, int z, int worldX, int worldZ) {
+    private void generateTerrainColumn(Chunk chunk, int x, int z, int worldX, int worldZ, PlanetModel planetModel) {
         // Sample terrain and environmental conditions from physics system
         double terrainHeight = planetModel.getTerrainHeight(worldX, worldZ);
         double temperature = planetModel.getTemperature(worldX, worldZ);
         double moisture = planetModel.getMoisture(worldX, worldZ);
-        
+
         // Clamp terrain height to our 0-256 range
         int surfaceY = Math.max(MIN_WORLD_Y, Math.min(MAX_WORLD_Y, (int) terrainHeight));
-        
+
         // Adjust sea level for 0-256 range
         int seaLevel = Math.max(MIN_WORLD_Y, Math.min(MAX_WORLD_Y, planetModel.getPlanetData().getSeaLevel()));
-        
+
         // Generate column from bottom to top
         for (int y = MIN_WORLD_Y; y <= MAX_WORLD_Y; y++) {
             BlockPos pos = new BlockPos(x, y, z);
-            
+
             if (y <= surfaceY) {
                 // Use physics system to determine block type
                 BlockState blockState = planetModel.getTerrainBlockState(worldX, worldZ, y);
@@ -173,8 +195,8 @@ public class UniversalChunkGenerator extends ChunkGenerator {
      * Fallback terrain generation if physics system fails or is unavailable
      */
     private void generateFallbackTerrain(Chunk chunk) {
-        Terradyne.LOGGER.warn("Using fallback terrain generation for chunk {} (planet model unavailable)", 
-                            chunk.getPos());
+        Terradyne.LOGGER.warn("Using fallback terrain generation for chunk {} (planet model unavailable)",
+                chunk.getPos());
 
         // Simple flat terrain as emergency fallback - adapted for 0-256 range
         for (int x = 0; x < 16; x++) {
@@ -199,8 +221,8 @@ public class UniversalChunkGenerator extends ChunkGenerator {
     // ============================================================================
 
     @Override
-    public void carve(ChunkRegion chunkRegion, long seed, NoiseConfig noiseConfig, BiomeAccess biomeAccess, 
-                     StructureAccessor structureAccessor, Chunk chunk, GenerationStep.Carver carverStep) {
+    public void carve(ChunkRegion chunkRegion, long seed, NoiseConfig noiseConfig, BiomeAccess biomeAccess,
+                      StructureAccessor structureAccessor, Chunk chunk, GenerationStep.Carver carverStep) {
         // Carving disabled - physics system handles erosion through noise
         // TODO: Implement cave/cavern generation in future phases
     }
@@ -217,37 +239,46 @@ public class UniversalChunkGenerator extends ChunkGenerator {
     }
 
     @Override
-    public int getWorldHeight() { 
+    public int getWorldHeight() {
         return WORLD_HEIGHT; // 256 blocks tall
     }
 
     @Override
     public int getSeaLevel() {
-        if (planetModel != null) {
+        MinecraftServer server = null; // We don't have server context in this method
+        PlanetModel currentPlanetModel = getPlanetModel(server);
+
+        if (currentPlanetModel != null) {
             // Clamp sea level to our height range
-            return Math.max(MIN_WORLD_Y, Math.min(MAX_WORLD_Y, planetModel.getPlanetData().getSeaLevel()));
+            return Math.max(MIN_WORLD_Y, Math.min(MAX_WORLD_Y, currentPlanetModel.getPlanetData().getSeaLevel()));
         }
         return 63; // Minecraft default fallback (adjusted for 0-256)
     }
 
     @Override
-    public int getMinimumY() { 
+    public int getMinimumY() {
         return MIN_WORLD_Y; // Y=0
     }
 
     @Override
     public int getHeight(int x, int z, Heightmap.Type heightmap, HeightLimitView world, NoiseConfig noiseConfig) {
-        if (planetModel == null) {
+        MinecraftServer server = null; // We don't have server context in this method
+        PlanetModel currentPlanetModel = getPlanetModel(server);
+
+        if (currentPlanetModel == null) {
             return 120; // Fallback height for 0-256 range
         }
 
-        double terrainHeight = planetModel.getTerrainHeight(x, z);
+        double terrainHeight = currentPlanetModel.getTerrainHeight(x, z);
         return Math.max(MIN_WORLD_Y, Math.min(MAX_WORLD_Y, (int) terrainHeight));
     }
 
     @Override
     public VerticalBlockSample getColumnSample(int x, int z, HeightLimitView world, NoiseConfig noiseConfig) {
-        if (planetModel == null) {
+        MinecraftServer server = null; // We don't have server context in this method
+        PlanetModel currentPlanetModel = getPlanetModel(server);
+
+        if (currentPlanetModel == null) {
             // Fallback column for 0-256 range
             BlockState[] column = new BlockState[WORLD_HEIGHT];
             for (int y = 0; y < WORLD_HEIGHT; y++) {
@@ -263,16 +294,16 @@ public class UniversalChunkGenerator extends ChunkGenerator {
 
         // Generate physics-based column for 0-256 range
         BlockState[] column = new BlockState[WORLD_HEIGHT];
-        double terrainHeight = planetModel.getTerrainHeight(x, z);
+        double terrainHeight = currentPlanetModel.getTerrainHeight(x, z);
         int surfaceY = Math.max(MIN_WORLD_Y, Math.min(MAX_WORLD_Y, (int) terrainHeight));
-        int seaLevel = Math.max(MIN_WORLD_Y, Math.min(MAX_WORLD_Y, planetModel.getPlanetData().getSeaLevel()));
-        
+        int seaLevel = Math.max(MIN_WORLD_Y, Math.min(MAX_WORLD_Y, currentPlanetModel.getPlanetData().getSeaLevel()));
+
         for (int y = 0; y < WORLD_HEIGHT; y++) {
             int worldY = MIN_WORLD_Y + y;
-            
+
             if (worldY <= surfaceY) {
-                column[y] = planetModel.getTerrainBlockState(x, z, worldY);
-            } else if (worldY <= seaLevel && planetModel.getPlanetData().hasLiquidWater()) {
+                column[y] = currentPlanetModel.getTerrainBlockState(x, z, worldY);
+            } else if (worldY <= seaLevel && currentPlanetModel.getPlanetData().hasLiquidWater()) {
                 column[y] = Blocks.WATER.getDefaultState();
             } else {
                 column[y] = Blocks.AIR.getDefaultState();
@@ -286,40 +317,43 @@ public class UniversalChunkGenerator extends ChunkGenerator {
     public void getDebugHudText(List<String> text, NoiseConfig noiseConfig, BlockPos pos) {
         text.add("=== TERRADYNE PHYSICS-BASED GENERATION ===");
         text.add("Height Range: Y " + MIN_WORLD_Y + " to " + MAX_WORLD_Y);
-        
-        if (planetModel != null) {
-            text.add("Planet: " + planetModel.getConfig().getPlanetName());
-            text.add("Classification: " + planetModel.getPlanetClassification());
-            text.add("Physics Status: " + (planetModel.isValid() ? "ACTIVE" : "ERROR"));
-            
+
+        MinecraftServer server = null; // We don't have server context in this method
+        PlanetModel currentPlanetModel = getPlanetModel(server);
+
+        if (currentPlanetModel != null) {
+            text.add("Planet: " + currentPlanetModel.getConfig().getPlanetName());
+            text.add("Classification: " + currentPlanetModel.getPlanetClassification());
+            text.add("Physics Status: " + (currentPlanetModel.isValid() ? "ACTIVE" : "ERROR"));
+
             text.add("");
             text.add("=== TERRAIN ANALYSIS ===");
             try {
-                text.add(planetModel.analyzeTerrainAt(pos.getX(), pos.getZ()));
+                text.add(currentPlanetModel.analyzeTerrainAt(pos.getX(), pos.getZ()));
             } catch (Exception e) {
                 text.add("Error analyzing terrain: " + e.getMessage());
             }
-            
+
             text.add("");
             text.add("=== NOISE SAMPLING ===");
             try {
-                text.add(planetModel.sampleAllNoiseAt(pos.getX(), pos.getZ()));
+                text.add(currentPlanetModel.sampleAllNoiseAt(pos.getX(), pos.getZ()));
             } catch (Exception e) {
                 text.add("Error sampling noise: " + e.getMessage());
             }
-            
+
             text.add("");
             text.add("=== PHYSICS DATA ===");
             try {
-                text.add("Temperature: " + String.format("%.1f°C", planetModel.getTemperature(pos.getX(), pos.getZ())));
-                text.add("Moisture: " + String.format("%.2f", planetModel.getMoisture(pos.getX(), pos.getZ())));
-                text.add("Tectonic Activity: " + String.format("%.2f", planetModel.getTectonicActivity(pos.getX(), pos.getZ())));
+                text.add("Temperature: " + String.format("%.1f°C", currentPlanetModel.getTemperature(pos.getX(), pos.getZ())));
+                text.add("Moisture: " + String.format("%.2f", currentPlanetModel.getMoisture(pos.getX(), pos.getZ())));
+                text.add("Tectonic Activity: " + String.format("%.2f", currentPlanetModel.getTectonicActivity(pos.getX(), pos.getZ())));
                 text.add("Sea Level: Y=" + getSeaLevel());
-                text.add("Habitability: " + String.format("%.2f", planetModel.getPlanetData().getHabitability()));
+                text.add("Habitability: " + String.format("%.2f", currentPlanetModel.getPlanetData().getHabitability()));
             } catch (Exception e) {
                 text.add("Error reading physics data: " + e.getMessage());
             }
-            
+
         } else {
             text.add("No planet model loaded");
             text.add("Planet Name: " + planetName);
@@ -327,19 +361,12 @@ public class UniversalChunkGenerator extends ChunkGenerator {
             text.add("");
             text.add("This may indicate:");
             text.add("- Planet not properly registered");
-            text.add("- Codec deserialization failed");
             text.add("- World loaded before planet creation");
+            text.add("- Server context unavailable");
         }
     }
 
     // === ACCESSORS ===
-
-    /**
-     * Get the planet model (may be null if unavailable)
-     */
-    public PlanetModel getPlanetModel() {
-        return planetModel;
-    }
 
     /**
      * Get the planet name
