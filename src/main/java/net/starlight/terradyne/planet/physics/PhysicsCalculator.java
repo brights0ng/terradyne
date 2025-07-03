@@ -19,15 +19,15 @@ public class PhysicsCalculator {
      */
     public static PlanetData calculatePlanetData(PlanetConfig config) {
         Terradyne.LOGGER.info("Calculating physics for planet: {}", config.getPlanetName());
-        
+
         // === PHYSICS CONSTRAINT ENFORCEMENT ===
         PlanetConfig correctedConfig = enforcePhysicsConstraints(config);
-        
+
         // === CORE PHYSICS CALCULATIONS ===
         double gravity = calculateGravity(correctedConfig);
         double temperature = calculateTemperature(correctedConfig);
         PlanetAge age = calculatePlanetAge(correctedConfig);
-        
+
         // === DERIVED PROPERTIES ===
         double habitability = calculateHabitability(correctedConfig, temperature, gravity);
         double waterErosion = calculateWaterErosion(correctedConfig, temperature);
@@ -36,15 +36,15 @@ public class PhysicsCalculator {
         int seaLevel = calculateSeaLevel(correctedConfig);
         double volcanism = calculateVolcanism(correctedConfig, age);
         double glacialCoverage = calculateGlacialCoverage(correctedConfig, temperature);
-        
+
         // === TERRAIN GENERATION FACTORS ===
         double continentalScale = calculateContinentalScale(correctedConfig);
         double mountainScale = calculateMountainScale(correctedConfig, age);
         double erosionScale = calculateErosionScale(waterErosion, windErosion);
-        
+
         // === CLIMATE FACTORS ===
         Map<String, Double> climateFactors = calculateClimateFactors(correctedConfig, temperature);
-        
+
         return new PlanetData(
             gravity, age, temperature, habitability, waterErosion, windErosion,
             mainRockType, seaLevel, volcanism, glacialCoverage,
@@ -90,13 +90,13 @@ public class PhysicsCalculator {
 
         // === STEP 2: PHYSICS-BASED CONSTRAINTS ===
         double estimatedTemp = calculateTemperature(corrected);
-        
+
         // If too hot for liquid water, reduce water content
         if (estimatedTemp > 100 && corrected.getWaterContent() > 0.1) {
             corrected.setWaterContent(Math.max(0.0, corrected.getWaterContent() - 0.7));
             Terradyne.LOGGER.warn("Water content reduced due to high temperature ({}°C)", estimatedTemp);
         }
-        
+
         // If too cold for liquid water, reduce erosion
         if (estimatedTemp < -20 && corrected.getWaterContent() > 0.5) {
             corrected.setWaterContent(corrected.getWaterContent() * 0.3); // Most water frozen
@@ -104,13 +104,13 @@ public class PhysicsCalculator {
         }
 
         // === ATMOSPHERE-BASED CONSTRAINTS ===
-        
+
         // Vacuum atmosphere forces atmospheric density to zero
         if (corrected.getAtmosphereComposition() == AtmosphereComposition.VACUUM) {
             corrected.setAtmosphericDensity(0.0);
             Terradyne.LOGGER.warn("Atmospheric density set to 0 for vacuum atmosphere");
         }
-        
+
         // Very small planets can't retain thick atmospheres
         if (corrected.getCircumference() < 3000 && corrected.getAtmosphericDensity() > 0.3) {
             corrected.setAtmosphericDensity(0.1);
@@ -118,7 +118,7 @@ public class PhysicsCalculator {
         }
 
         // === COMPOSITION-BASED CONSTRAINTS ===
-        
+
         // Ice-rich planets must be cold
 //        if (corrected.getCrustComposition() == CrustComposition.BASALTIC && estimatedTemp > 0) { // This section uses outdated crust types
 //            // Can't easily change temperature, so warn but allow
@@ -133,29 +133,29 @@ public class PhysicsCalculator {
      */
     private static void logClampingWarnings(PlanetConfig original, PlanetConfig clamped) {
         if (original.getCircumference() != clamped.getCircumference()) {
-            Terradyne.LOGGER.warn("Circumference clamped from {} to {} km", 
+            Terradyne.LOGGER.warn("Circumference clamped from {} to {} km",
                                 original.getCircumference(), clamped.getCircumference());
         }
         if (original.getDistanceFromStar() != clamped.getDistanceFromStar()) {
-            Terradyne.LOGGER.warn("Star distance clamped from {} to {} Mkm", 
+            Terradyne.LOGGER.warn("Star distance clamped from {} to {} Mkm",
                                 original.getDistanceFromStar(), clamped.getDistanceFromStar());
         }
         if (Math.abs(original.getCrustalThickness() - clamped.getCrustalThickness()) > 0.01) {
-            Terradyne.LOGGER.warn("Crustal thickness clamped from {:.1f} to {:.1f} km", 
+            Terradyne.LOGGER.warn("Crustal thickness clamped from {:.1f} to {:.1f} km",
                                 original.getCrustalThickness(), clamped.getCrustalThickness());
         }
         if (Math.abs(original.getRotationPeriod() - clamped.getRotationPeriod()) > 0.01) {
-            Terradyne.LOGGER.warn("Rotation period clamped from {:.2f} to {:.2f} days", 
+            Terradyne.LOGGER.warn("Rotation period clamped from {:.2f} to {:.2f} days",
                                 original.getRotationPeriod(), clamped.getRotationPeriod());
         }
         if (Math.abs(original.getNoiseScale() - clamped.getNoiseScale()) > 0.0001) {
-            Terradyne.LOGGER.warn("Noise scale clamped from {:.4f} to {:.4f}", 
+            Terradyne.LOGGER.warn("Noise scale clamped from {:.4f} to {:.4f}",
                                 original.getNoiseScale(), clamped.getNoiseScale());
         }
     }
 
     // === UTILITY METHODS (moved from PlanetConfig) ===
-    
+
     private static double clamp(double value, double min, double max) {
         return Math.max(min, Math.min(max, value));
     }
@@ -175,7 +175,7 @@ public class PhysicsCalculator {
     private static double calculateGravity(PlanetConfig config) {
         // Earth reference: 40,000 km = 1.0g
         double baseGravity = (double) config.getCircumference() / 40000.0;
-        
+
         // Crust composition affects density
         double densityModifier = switch (config.getCrustComposition()) {
             case METALLIC -> 1.4;        // Much denser
@@ -184,7 +184,7 @@ public class PhysicsCalculator {
             case HALLIDE -> 1.1;        // Slightly denser
             default -> 1.0;               // Standard rocky density
         };
-        
+
         return Math.max(0.1, Math.min(3.0, baseGravity * densityModifier));
     }
 
@@ -313,23 +313,23 @@ public class PhysicsCalculator {
         if (config.getTectonicActivity() > 0.8) {
             return PlanetAge.YOUNG;
         }
-        
+
         // Dead planets: no tectonic activity + extreme conditions
         if (config.getTectonicActivity() < 0.1) {
             return PlanetAge.DEAD;
         }
-        
+
         // Infant planets: extreme star distance or unusual composition
         double temp = calculateTemperature(config);
         if (temp > 200 || temp < -100) {
             return PlanetAge.INFANT; // Still forming/extreme conditions
         }
-        
+
         // Old planets: low-moderate tectonic activity
         if (config.getTectonicActivity() < 0.4) {
             return PlanetAge.OLD;
         }
-        
+
         // Default: mature
         return PlanetAge.MATURE;
     }
@@ -339,16 +339,16 @@ public class PhysicsCalculator {
      */
     private static double calculateWaterErosion(PlanetConfig config, double temperature) {
         if (config.getWaterContent() < 0.1) return 0.0;
-        
+
         double erosion = config.getWaterContent() * 0.8;
-        
+
         // Temperature affects erosion rate
         if (temperature > 10 && temperature < 30) {
             erosion *= 1.2; // Optimal temperature for water erosion
         } else if (temperature < 0) {
             erosion *= 0.3; // Ice reduces liquid water erosion
         }
-        
+
         return Math.max(0.0, Math.min(1.0, erosion));
     }
 
@@ -357,14 +357,14 @@ public class PhysicsCalculator {
      */
     private static double calculateWindErosion(PlanetConfig config) {
         double erosion = config.getAtmosphericDensity() * 0.6;
-        
+
         // Atmosphere composition affects erosion
         erosion *= switch (config.getAtmosphereComposition()) {
             case CARBON_DIOXIDE, WATER_VAPOR_RICH -> 1.3; // Dense, erosive atmospheres
             case VACUUM, TRACE_ATMOSPHERE -> 0.0;         // No wind erosion
             default -> 1.0;
         };
-        
+
         return Math.max(0.0, Math.min(1.0, erosion));
     }
 
@@ -386,20 +386,57 @@ public class PhysicsCalculator {
     }
 
     /**
-     * Calculate sea level based on water content and crust thickness
-     * Updated for 0-256 height range
+     * Calculate sea level based on water content and continental noise range
+     * Updated for 0-256 height range with dynamic water placement
      */
     private static int calculateSeaLevel(PlanetConfig config) {
-        int baseSeaLevel = 128; // Middle of 0-256 range (was 63 for -64-319 range)
+        // Handle no water case
+        double waterContent = Math.max(0.0, Math.min(1.0, config.getWaterContent()));
+        if (waterContent == 0.0) {
+            return 0; // No sea level
+        }
 
-        // Crustal thickness affects elevation
-        int elevationOffset = (int) ((config.getCrustalThickness() - 35.0) * 0.5);
+        // Calculate continental amplitude: ±20 to ±80 blocks (reverted)
+        double tectonicActivity = Math.max(0.0, Math.min(1.0, config.getTectonicActivity()));
+        double continentalAmplitude = 20.0 + (tectonicActivity * 60.0);
 
-        // Water content affects sea level
-        int waterOffset = (int) ((config.getWaterContent() - 0.5) * 20);
+        // Base terrain average at Y=128
+        double baseHeight = 128.0;
+
+        // Account for total continental + subcontinental range
+        // Subcontinental adds complexity but won't all align perfectly
+        // Realistic total range is ~150% of base continental amplitude
+        double totalAmplitude = continentalAmplitude * 1.5; // More realistic estimate
+        double highestPoint = baseHeight + totalAmplitude;
+        double lowestPoint = baseHeight - totalAmplitude;
+
+        // Water level based on water content
+        double waterLevel;
+
+        if (waterContent <= 0.01) {
+            // Very low water: just above lowest continental noise
+            waterLevel = lowestPoint + 2.0;
+        } else if (waterContent >= 1.0) {
+            // Full water world: just above highest continental noise
+            waterLevel = highestPoint + 2.0;
+        } else if (Math.abs(waterContent - 0.5) < 0.01) {
+            // 50% water: at average terrain height
+            waterLevel = baseHeight;
+        } else {
+            // Linear interpolation between extremes
+            if (waterContent < 0.5) {
+                // Interpolate between lowest+2 and baseHeight
+                double t = waterContent / 0.5; // 0.0 to 1.0
+                waterLevel = (lowestPoint + 2.0) + t * (baseHeight - (lowestPoint + 2.0));
+            } else {
+                // Interpolate between baseHeight and highest+2
+                double t = (waterContent - 0.5) / 0.5; // 0.0 to 1.0
+                waterLevel = baseHeight + t * ((highestPoint + 2.0) - baseHeight);
+            }
+        }
 
         // Clamp to valid height range for 0-256 world
-        return Math.max(10, Math.min(200, baseSeaLevel + elevationOffset + waterOffset));
+        return Math.max(1, Math.min(200, (int) Math.round(waterLevel)));
     }
 
     /**
@@ -407,7 +444,7 @@ public class PhysicsCalculator {
      */
     private static double calculateVolcanism(PlanetConfig config, PlanetAge age) {
         double volcanism = config.getTectonicActivity() * 0.8;
-        
+
         // Age affects volcanism
         volcanism *= switch (age) {
             case INFANT, YOUNG -> 1.5;
@@ -415,7 +452,7 @@ public class PhysicsCalculator {
             case OLD -> 0.5;
             case DEAD -> 0.1;
         };
-        
+
         return Math.max(0.0, Math.min(1.0, volcanism));
     }
 
@@ -424,17 +461,17 @@ public class PhysicsCalculator {
      */
     private static double calculateGlacialCoverage(PlanetConfig config, double temperature) {
         if (temperature > 10) return 0.0;
-        
+
         double coverage = 0.0;
         if (temperature < -10) {
             coverage = 0.8;
         } else if (temperature < 0) {
             coverage = 0.3;
         }
-        
+
         // Water content affects ice formation
         coverage *= config.getWaterContent();
-        
+
         return Math.max(0.0, Math.min(1.0, coverage));
     }
 
@@ -451,7 +488,7 @@ public class PhysicsCalculator {
      */
     private static double calculateMountainScale(PlanetConfig config, PlanetAge age) {
         double scale = config.getTectonicActivity() * 1.5;
-        
+
         // Age affects mountain height
         scale *= switch (age) {
             case INFANT, YOUNG -> 1.3;
@@ -459,7 +496,7 @@ public class PhysicsCalculator {
             case OLD -> 0.7;
             case DEAD -> 0.3;
         };
-        
+
         return Math.max(0.2, Math.min(3.0, scale));
     }
 
@@ -475,12 +512,12 @@ public class PhysicsCalculator {
      */
     private static Map<String, Double> calculateClimateFactors(PlanetConfig config, double temperature) {
         Map<String, Double> factors = new HashMap<>();
-        
+
         factors.put("temperatureVariation", config.getRotationPeriod() * 0.3);
         factors.put("seasonalStrength", Math.abs(temperature) * 0.02);
         factors.put("stormIntensity", config.getAtmosphericDensity() * 0.8);
         factors.put("weatherStability", 1.0 - config.getTectonicActivity() * 0.4);
-        
+
         return factors;
     }
 }

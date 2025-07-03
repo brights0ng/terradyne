@@ -113,10 +113,10 @@ public class PlanetDimensionDataProvider implements DataProvider {
             // Use the planetKey (e.g., "proximacentaurib") instead of config.getPlanetName()
             generator.addProperty("planet_name", planetKey);
 
-            // Biome source - fixed plains for now
+            // Biome source - fixed debug biome
             JsonObject biomeSource = new JsonObject();
             biomeSource.addProperty("type", "minecraft:fixed");
-            biomeSource.addProperty("biome", "minecraft:plains");
+            biomeSource.addProperty("biome", "terradyne:debug");
             generator.add("biome_source", biomeSource);
 
             dimension.add("generator", generator);

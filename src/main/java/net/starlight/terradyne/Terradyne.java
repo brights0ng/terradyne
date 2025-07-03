@@ -9,6 +9,7 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.util.Identifier;
 import net.starlight.terradyne.blocks.ModBlocks;
 import net.starlight.terradyne.commands.CommandRegistry;
+import net.starlight.terradyne.planet.biome.ModBiomes;
 import net.starlight.terradyne.planet.chunk.UniversalChunkGenerator;
 import net.starlight.terradyne.planet.dimension.ModDimensionTypes;
 import org.slf4j.Logger;
@@ -127,6 +128,7 @@ public class Terradyne implements ModInitializer {
 
 	private void initializeRegistryKeys() {
 		ModDimensionTypes.init();
+		ModBiomes.init();
 		LOGGER.info("✓ Registry keys initialized");
 	}
 

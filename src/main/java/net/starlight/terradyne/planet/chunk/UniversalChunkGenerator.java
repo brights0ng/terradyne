@@ -24,7 +24,6 @@ import net.starlight.terradyne.Terradyne;
 import net.starlight.terradyne.datagen.HardcodedPlanets;
 import net.starlight.terradyne.planet.physics.PlanetConfig;
 import net.starlight.terradyne.planet.physics.PlanetModel;
-import net.starlight.terradyne.planet.world.WorldPlanetManager;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -343,7 +342,8 @@ public class UniversalChunkGenerator extends ChunkGenerator {
     }
 
     /**
-     * Main terrain generation method - uses physics system (FIXED)
+     * Main terrain generation method - uses physics system (PERFORMANCE FIXED)
+     * NOW SAMPLES CLIMATE ONCE PER CHUNK FOR PERFORMANCE
      */
     private void generateTerrain(Chunk chunk, NoiseConfig noiseConfig) {
         // No more lazy loading - planet model should be loaded from codec
@@ -359,14 +359,26 @@ public class UniversalChunkGenerator extends ChunkGenerator {
             Terradyne.LOGGER.debug("Generating physics-based terrain for chunk {} on planet {}",
                     chunkPos, planetModel.getConfig().getPlanetName());
 
-            // Generate terrain using physics system
+            // === PERFORMANCE FIX: Sample climate ONCE per chunk at chunk center ===
+            int chunkCenterX = chunkPos.getStartX() + 8;
+            int chunkCenterZ = chunkPos.getStartZ() + 8;
+
+            double chunkTemperature = planetModel.getTemperature(chunkCenterX, chunkCenterZ);
+            double chunkMoisture = planetModel.getMoisture(chunkCenterX, chunkCenterZ);
+            double chunkWindSpeed = planetModel.getNoiseSystem().sampleWindSpeed(chunkCenterX, chunkCenterZ);
+
+            Terradyne.LOGGER.debug("Chunk climate: temp={:.1f}°C, moisture={:.2f}, wind={:.2f}",
+                    chunkTemperature, chunkMoisture, chunkWindSpeed);
+
+            // Generate terrain using physics system with cached climate data
             for (int x = 0; x < 16; x++) {
                 for (int z = 0; z < 16; z++) {
                     int worldX = chunkPos.getStartX() + x;
                     int worldZ = chunkPos.getStartZ() + z;
 
                     // Generate complete terrain column using physics - adapted for 0-256 range
-                    generateTerrainColumn(chunk, x, z, worldX, worldZ, planetModel);
+                    generateTerrainColumn(chunk, x, z, worldX, worldZ, planetModel,
+                            chunkTemperature, chunkMoisture, chunkWindSpeed);
                 }
             }
 
@@ -376,6 +388,43 @@ public class UniversalChunkGenerator extends ChunkGenerator {
             Terradyne.LOGGER.error("Critical error in physics-based terrain generation for chunk {}: {}",
                     chunk.getPos(), e.getMessage(), e);
             generateFallbackTerrain(chunk);
+        }
+    }
+
+    /**
+     * Generate terrain column adapted for 0-256 height range
+     * PERFORMANCE FIX: Now accepts cached climate data instead of sampling per column
+     */
+    private void generateTerrainColumn(Chunk chunk, int x, int z, int worldX, int worldZ,
+                                       PlanetModel planetModel, double temperature, double moisture, double windSpeed) {
+        // Sample terrain height (this is still needed per column for height variation)
+        double terrainHeight = planetModel.getTerrainHeight(worldX, worldZ);
+
+        // Use cached climate data instead of sampling again
+        // double temperature = planetModel.getTemperature(worldX, worldZ);  // REMOVED - now cached!
+        // double moisture = planetModel.getMoisture(worldX, worldZ);        // REMOVED - now cached!
+
+        // Clamp terrain height to our 0-256 range
+        int surfaceY = Math.max(MIN_WORLD_Y, Math.min(MAX_WORLD_Y, (int) terrainHeight));
+
+        // Adjust sea level for 0-256 range
+        int seaLevel = Math.max(MIN_WORLD_Y, Math.min(MAX_WORLD_Y, planetModel.getPlanetData().getSeaLevel()));
+
+        // Generate column from bottom to top
+        for (int y = MIN_WORLD_Y; y <= MAX_WORLD_Y; y++) {
+            BlockPos pos = new BlockPos(x, y, z);
+
+            if (y <= surfaceY) {
+                // Use physics system with cached climate data to determine block type
+                BlockState blockState = planetModel.getTerrainBlockState(worldX, worldZ, y, temperature, moisture);
+                chunk.setBlockState(pos, blockState, false);
+            } else if (y <= seaLevel && planetModel.getPlanetData().hasLiquidWater()) {
+                // Fill with water up to sea level
+                chunk.setBlockState(pos, Blocks.WATER.getDefaultState(), false);
+            } else {
+                // Air above surface/water
+                chunk.setBlockState(pos, Blocks.AIR.getDefaultState(), false);
+            }
         }
     }
 
@@ -465,39 +514,6 @@ public class UniversalChunkGenerator extends ChunkGenerator {
     }
 
     /**
-     * Generate terrain column adapted for 0-256 height range
-     */
-    private void generateTerrainColumn(Chunk chunk, int x, int z, int worldX, int worldZ, PlanetModel planetModel) {
-        // Sample terrain and environmental conditions from physics system
-        double terrainHeight = planetModel.getTerrainHeight(worldX, worldZ);
-        double temperature = planetModel.getTemperature(worldX, worldZ);
-        double moisture = planetModel.getMoisture(worldX, worldZ);
-
-        // Clamp terrain height to our 0-256 range
-        int surfaceY = Math.max(MIN_WORLD_Y, Math.min(MAX_WORLD_Y, (int) terrainHeight));
-
-        // Adjust sea level for 0-256 range
-        int seaLevel = Math.max(MIN_WORLD_Y, Math.min(MAX_WORLD_Y, planetModel.getPlanetData().getSeaLevel()));
-
-        // Generate column from bottom to top
-        for (int y = MIN_WORLD_Y; y <= MAX_WORLD_Y; y++) {
-            BlockPos pos = new BlockPos(x, y, z);
-
-            if (y <= surfaceY) {
-                // Use physics system to determine block type
-                BlockState blockState = planetModel.getTerrainBlockState(worldX, worldZ, y);
-                chunk.setBlockState(pos, blockState, false);
-            } else if (y <= seaLevel && planetModel.getPlanetData().hasLiquidWater()) {
-                // Fill with water up to sea level
-                chunk.setBlockState(pos, Blocks.WATER.getDefaultState(), false);
-            } else {
-                // Air above surface/water
-                chunk.setBlockState(pos, Blocks.AIR.getDefaultState(), false);
-            }
-        }
-    }
-
-    /**
      * Fallback terrain generation if physics system fails or is unavailable
      */
     private void generateFallbackTerrain(Chunk chunk) {
@@ -567,5 +583,12 @@ public class UniversalChunkGenerator extends ChunkGenerator {
      */
     public boolean hasPhysicsGeneration() {
         return planetModel != null && planetModel.isValid();
+    }
+
+    /**
+     * Get the planet model for external access (map exports, etc.)
+     */
+    public PlanetModel getPlanetModel() {
+        return planetModel;
     }
 }

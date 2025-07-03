@@ -44,13 +44,17 @@ public class TerrainHeightMapper {
 
     /**
      * Get appropriate block state for given terrain conditions
+     * PERFORMANCE FIX: Now accepts cached climate data to avoid expensive per-block sampling
      */
-    public BlockState getTerrainBlockState(int worldX, int worldZ, int minecraftY) {
+    public BlockState getTerrainBlockState(int worldX, int worldZ, int minecraftY,
+                                           double temperature, double moisture) {
         // Sample terrain and environmental conditions
         double terrainHeight = noiseSystem.sampleTerrainHeight(worldX, worldZ);
         double tectonicActivity = noiseSystem.sampleTectonicActivity(worldX, worldZ);
-        double temperature = noiseSystem.sampleTemperature(worldX, worldZ);
-        double moisture = noiseSystem.sampleMoisture(worldX, worldZ);
+
+        // Use cached climate data instead of expensive sampling
+        // double temperature = noiseSystem.sampleTemperature(worldX, worldZ);  // REMOVED - now cached!
+        // double moisture = noiseSystem.sampleMoisture(worldX, worldZ);        // REMOVED - now cached!
 
         // Calculate terrain factors for block selection
         double elevation = calculateElevationFactor(minecraftY, terrainHeight);
@@ -63,6 +67,18 @@ public class TerrainHeightMapper {
         // Apply special conditions
         return applySpecialConditions(selectedBlock, worldX, worldZ, minecraftY,
                 terrainHeight, temperature, moisture);
+    }
+
+    /**
+     * Get appropriate block state for given terrain conditions (LEGACY METHOD)
+     * This method is kept for backwards compatibility but should be avoided for performance
+     */
+    public BlockState getTerrainBlockState(int worldX, int worldZ, int minecraftY) {
+        // This method still samples climate per-block - use cached version when possible
+        double temperature = noiseSystem.sampleTemperature(worldX, worldZ);
+        double moisture = noiseSystem.sampleMoisture(worldX, worldZ);
+
+        return getTerrainBlockState(worldX, worldZ, minecraftY, temperature, moisture);
     }
 
     /**

@@ -14,6 +14,7 @@ import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
 import net.starlight.terradyne.planet.config.PlanetConfigLoader;
 import net.starlight.terradyne.planet.dimension.PlanetDimensionManager;
+import net.starlight.terradyne.planet.mapping.ClimateMapExporter;
 import net.starlight.terradyne.planet.physics.PlanetConfig;
 
 /**
@@ -55,6 +56,17 @@ public class CommandRegistry {
                 .then(CommandManager.literal("reload")
                         .requires(source -> source.hasPermissionLevel(3)) // OP only
                         .executes(CommandRegistry::reloadConfigCommand)
+                )
+                .then(CommandManager.literal("export")
+                        .then(CommandManager.argument("planet", StringArgumentType.string())
+                                .suggests((context, builder) -> {
+                                    // Suggest available planets
+                                    getAvailablePlanets(context.getSource().getServer())
+                                            .forEach(builder::suggest);
+                                    return builder.buildFuture();
+                                })
+                                .executes(CommandRegistry::exportClimateCommand)
+                        )
                 )
         );
     }
@@ -263,6 +275,42 @@ public class CommandRegistry {
             return 1;
         } catch (Exception e) {
             source.sendError(Text.literal("❌ Failed to reload configs: " + e.getMessage()));
+            return 0;
+        }
+    }
+
+    /**
+     * Export climate maps for a planet
+     */
+    private static int exportClimateCommand(CommandContext<ServerCommandSource> context) {
+        ServerCommandSource source = context.getSource();
+        String planetName = StringArgumentType.getString(context, "planet");
+
+        // Check if planet exists
+        if (!planetExists(source.getServer(), planetName)) {
+            source.sendError(Text.literal("Planet '")
+                    .append(Text.literal(planetName).formatted(Formatting.RED))
+                    .append("' not found"));
+            return 0;
+        }
+
+        try {
+            source.sendFeedback(() -> Text.literal("🗺️ Exporting climate maps for ")
+                    .append(Text.literal(planetName).formatted(Formatting.GREEN))
+                    .append("...")
+                    .formatted(Formatting.WHITE), false);
+
+            // Export all climate maps
+            ClimateMapExporter.exportAllMaps(source.getServer(), planetName);
+
+            source.sendFeedback(() -> Text.literal("✅ Climate maps exported successfully! Check ")
+                    .append(Text.literal("saves/[world]/terradyne/exports/").formatted(Formatting.AQUA))
+                    .formatted(Formatting.GREEN), false);
+
+            return 1;
+
+        } catch (Exception e) {
+            source.sendError(Text.literal("❌ Failed to export climate maps: " + e.getMessage()));
             return 0;
         }
     }
