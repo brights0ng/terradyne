@@ -3,6 +3,7 @@ package net.starlight.terradyne.planet.terrain;
 import net.minecraft.block.Block;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.Blocks;
+import net.starlight.terradyne.planet.mapping.PlanetaryNoiseSystem;
 import net.starlight.terradyne.planet.physics.BlockPaletteManager;
 import net.starlight.terradyne.planet.physics.PlanetData;
 import net.starlight.terradyne.planet.physics.PlanetModel;

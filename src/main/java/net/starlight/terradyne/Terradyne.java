@@ -10,7 +10,8 @@ import net.minecraft.util.Identifier;
 import net.starlight.terradyne.blocks.ModBlocks;
 import net.starlight.terradyne.commands.CommandRegistry;
 import net.starlight.terradyne.planet.biome.ModBiomes;
-import net.starlight.terradyne.planet.chunk.UniversalChunkGenerator;
+import net.starlight.terradyne.planet.biome.PhysicsBasedBiomeSource;
+import net.starlight.terradyne.planet.terrain.UniversalChunkGenerator;
 import net.starlight.terradyne.planet.dimension.ModDimensionTypes;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -23,6 +24,8 @@ public class Terradyne implements ModInitializer {
 	public static final String MOD_ID = "terradyne";
 	public static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
 
+	public static MinecraftServer server = null;
+
 	@Override
 	public void onInitialize() {
 		LOGGER.info("🚀 Initializing Terradyne...");
@@ -30,6 +33,7 @@ public class Terradyne implements ModInitializer {
 		// Initialize core systems
 		registerBlocks();
 		registerChunkGenerators();
+		registerBiomeSources();
 		initializeTerrainSystem();
 		registerCommands();
 		initializeRegistryKeys();
@@ -76,6 +80,7 @@ public class Terradyne implements ModInitializer {
 	private void registerServerEvents() {
 		// Just validate after server starts - no runtime generation needed
 		ServerLifecycleEvents.SERVER_STARTED.register(this::onServerStarted);
+		ServerLifecycleEvents.SERVER_STARTING.register(this::onServerStarting);
 
 		LOGGER.info("✓ Server lifecycle events registered");
 	}
@@ -85,6 +90,21 @@ public class Terradyne implements ModInitializer {
 	 */
 	private void onServerStarted(MinecraftServer server) {
 		LOGGER.info("=== SERVER STARTED - VALIDATION ===");
+
+		try {
+			validateDimensionsLoaded(server);
+		} catch (Exception e) {
+			LOGGER.error("❌ Post-startup validation failed", e);
+		}
+	}
+
+	/**
+	 * Validate planets after server startup
+	 */
+	private void onServerStarting(MinecraftServer server) {
+		LOGGER.info("=== SERVER STARTED - VALIDATION ===");
+
+		Terradyne.server = server;
 
 		try {
 			validateDimensionsLoaded(server);
@@ -134,6 +154,20 @@ public class Terradyne implements ModInitializer {
 
 	private void registerBlocks() {
 		ModBlocks.initialize();
+	}
+
+	private void registerBiomeSources() {
+		try {
+			Registry.register(
+					Registries.BIOME_SOURCE,
+					new Identifier(MOD_ID, "physics_based"),
+					PhysicsBasedBiomeSource.CODEC
+			);
+			LOGGER.info("✓ Biome source 'terradyne:physics_based' registered");
+		} catch (Exception e) {
+			LOGGER.error("❌ Failed to register biome source!", e);
+			throw new RuntimeException("Critical biome source registration failure", e);
+		}
 	}
 
 	private void logSystemStatus() {

@@ -1,4 +1,4 @@
-package net.starlight.terradyne.planet.terrain;
+package net.starlight.terradyne.planet.mapping;
 
 import java.util.HashMap;
 import java.util.Map;

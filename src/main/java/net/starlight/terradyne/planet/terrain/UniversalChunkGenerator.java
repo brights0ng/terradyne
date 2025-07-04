@@ -1,10 +1,10 @@
-package net.starlight.terradyne.planet.chunk;
+package net.starlight.terradyne.planet.terrain;
 
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.Blocks;
-import net.minecraft.server.MinecraftServer;
+import net.minecraft.registry.RegistryKeys;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.ChunkPos;
 import net.minecraft.world.ChunkRegion;
@@ -22,6 +22,7 @@ import net.minecraft.world.gen.noise.NoiseConfig;
 
 import net.starlight.terradyne.Terradyne;
 import net.starlight.terradyne.datagen.HardcodedPlanets;
+import net.starlight.terradyne.planet.biome.PhysicsBasedBiomeSource;
 import net.starlight.terradyne.planet.physics.PlanetConfig;
 import net.starlight.terradyne.planet.physics.PlanetModel;
 
@@ -31,6 +32,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
+
+import static net.starlight.terradyne.Terradyne.server;
 
 /**
  * Universal Chunk Generator with Physics-Based Generation
@@ -79,6 +82,7 @@ public class UniversalChunkGenerator extends ChunkGenerator {
      * Constructor for codec deserialization - IMPROVED to use hardcoded planets first
      * Falls back to file-based loading for user customization
      */
+    // Update the fromCodec method (around line 90 in your current file)
     private static UniversalChunkGenerator fromCodec(BiomeSource biomeSource, String planetName) {
         Terradyne.LOGGER.info("Creating UniversalChunkGenerator for planet: {}", planetName);
 
@@ -102,6 +106,27 @@ public class UniversalChunkGenerator extends ChunkGenerator {
             // Step 3: Create planet model if we found a config
             if (planetConfig != null) {
                 PlanetModel planetModel = new PlanetModel(planetConfig);
+
+                // NEW: Initialize physics-based biome source with planet model
+                if (biomeSource instanceof PhysicsBasedBiomeSource physicsSource) {
+                    physicsSource.setPlanetModel(planetModel);
+
+                    // Try to set registry lookup if we can get server context
+                    try {
+                        if (server != null) {
+                            var biomeLookup = server.getRegistryManager().get(RegistryKeys.BIOME).getReadOnlyWrapper();
+//                            physicsSource.setBiomeLookup(biomeLookup);
+                            Terradyne.LOGGER.info("✅ Set biome registry lookup for: {}", planetName);
+                        }
+                    } catch (Exception e) {
+                        Terradyne.LOGGER.debug("Could not set biome lookup (probably in data gen context): {}", e.getMessage());
+                    }
+
+                    Terradyne.LOGGER.info("✅ Initialized physics-based biome source for: {}", planetName);
+                } else {
+                    Terradyne.LOGGER.warn("⚠️  BiomeSource is not physics-based for planet: {} (type: {})",
+                            planetName, biomeSource.getClass().getSimpleName());
+                }
 
                 Terradyne.LOGGER.info("✅ Successfully created planet model: {} ({})",
                         planetName, planetModel.getPlanetClassification());
@@ -496,6 +521,12 @@ public class UniversalChunkGenerator extends ChunkGenerator {
             text.add("Classification: " + planetModel.getPlanetClassification());
             text.add("Physics Status: " + (planetModel.isValid() ? "ACTIVE" : "ERROR"));
 
+            // NEW: Add biome source info
+            text.add("Biome Source: " + getBiomeSource().getClass().getSimpleName());
+            if (getBiomeSource() instanceof PhysicsBasedBiomeSource physicsSource) {
+                text.add("Biome Initialization: " + (physicsSource.isInitialized() ? "✅" : "❌"));
+            }
+
             text.add("");
             text.add("=== TERRAIN ANALYSIS ===");
             try {
@@ -504,12 +535,33 @@ public class UniversalChunkGenerator extends ChunkGenerator {
                 text.add("Error analyzing terrain: " + e.getMessage());
             }
 
-            // Add more debug info...
+            // NEW: Add biome classification info at current position
+            try {
+                if (getBiomeSource() instanceof PhysicsBasedBiomeSource physicsSource &&
+                        physicsSource.isInitialized()) {
+
+                    // Sample biome at current position (convert to biome coordinates)
+                    var biomeEntry = getBiomeSource().getBiome(pos.getX() >> 2, pos.getY() >> 2, pos.getZ() >> 2, null);
+                    text.add("Current Biome: " + biomeEntry.getKey().map(key -> key.getValue().toString()).orElse("Unknown"));
+
+                    // Show physics conditions that led to this biome
+                    double temperature = planetModel.getTemperature(pos.getX(), pos.getZ());
+                    double humidity = planetModel.getMoisture(pos.getX(), pos.getZ());
+                    int volatility = planetModel.getVolatilityAt(pos.getX(), pos.getZ());
+                    double habitability = planetModel.getPlanetData().getHabitability();
+
+                    text.add(String.format("Biome Conditions: T=%.1f°C, H=%.2f, V=%d, Hab=%.2f",
+                            temperature, humidity, volatility, habitability));
+                }
+            } catch (Exception e) {
+                text.add("Error analyzing biome: " + e.getMessage());
+            }
 
         } else {
             text.add("No planet model loaded");
             text.add("Planet Name: " + planetName);
             text.add("Status: FALLBACK GENERATION");
+            text.add("Biome Source: " + getBiomeSource().getClass().getSimpleName());
         }
     }
 

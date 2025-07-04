@@ -15,7 +15,7 @@ import java.util.concurrent.CompletableFuture;
 
 /**
  * Generates planet dimension JSON files from hardcoded planet definitions
- * These will be packaged with the mod and always available
+ * UPDATED: Now uses physics-based biome source instead of fixed debug biome
  */
 public class PlanetDimensionDataProvider implements DataProvider {
 
@@ -28,7 +28,6 @@ public class PlanetDimensionDataProvider implements DataProvider {
 
     @Override
     public CompletableFuture<?> run(DataWriter writer) {
-        // FIXED: Make synchronous to avoid concurrency issues
         try {
             generatePlanetDimensions(writer);
             return CompletableFuture.completedFuture(null);
@@ -39,10 +38,10 @@ public class PlanetDimensionDataProvider implements DataProvider {
 
     /**
      * Generate dimension JSON files for all hardcoded planets
-     * FIXED: Better error handling and logging
+     * UPDATED: Now uses physics-based biome source for realistic biome placement
      */
     private void generatePlanetDimensions(DataWriter writer) {
-        System.out.println("=== STARTING PLANET DIMENSION GENERATION ===");
+        System.out.println("=== STARTING PLANET DIMENSION GENERATION (PHYSICS BIOMES) ===");
 
         var planets = HardcodedPlanets.getAllPlanets();
         System.out.println("Found " + planets.size() + " hardcoded planets: " + planets.keySet());
@@ -62,34 +61,33 @@ public class PlanetDimensionDataProvider implements DataProvider {
             System.out.println("Processing planet: " + planetKey + " (display name: " + config.getPlanetName() + ")");
 
             try {
-                // Create dimension JSON - use the map key as planet_name for consistency
+                // Create dimension JSON with physics-based biome source
                 JsonObject dimensionJson = createDimensionJson(planetKey, config);
-                System.out.println("Created JSON for " + planetKey + ": " + dimensionJson.toString());
+                System.out.println("Created JSON for " + planetKey + " with physics biomes");
 
-                // Create identifier for the dimension file using the map key
+                // Create identifier for the dimension file
                 Identifier dimensionId = new Identifier("terradyne", planetKey);
-                System.out.println("Creating dimension ID: " + dimensionId);
 
                 // Get the path for dimension files
                 Path dimensionPath = output.getResolver(net.minecraft.data.DataOutput.OutputType.DATA_PACK, "dimension")
                         .resolveJson(dimensionId);
-                System.out.println("Resolved path: " + dimensionPath);
 
                 // Write the JSON file
                 DataProvider.writeToPath(writer, dimensionJson, dimensionPath);
 
                 successCount++;
-                System.out.println("✅ Successfully generated dimension file: " + planetKey + ".json (" + successCount + "/" + totalCount + ")");
+                System.out.println("✅ Successfully generated dimension file: " + planetKey + ".json with " +
+                        "physics-based biomes (" + successCount + "/" + totalCount + ")");
 
             } catch (Exception e) {
                 System.err.println("❌ Failed to generate dimension for planet: " + planetKey);
                 e.printStackTrace();
-                // Continue with next planet instead of stopping
             }
         }
 
         System.out.println("=== PLANET DIMENSION GENERATION COMPLETE ===");
         System.out.println("Successfully generated " + successCount + " out of " + totalCount + " planets");
+        System.out.println("All planets now use physics-based biome classification with ~45 biome types");
 
         if (successCount != totalCount) {
             System.err.println("WARNING: Not all planets were generated successfully!");
@@ -97,31 +95,31 @@ public class PlanetDimensionDataProvider implements DataProvider {
     }
 
     /**
-     * Create dimension JSON structure using our registered chunk generator
-     * FIXED: Use planetKey instead of config name for consistency
+     * Create dimension JSON structure using physics-based biome source
+     * UPDATED: Uses terradyne:physics_based instead of minecraft:fixed
      */
     private JsonObject createDimensionJson(String planetKey, PlanetConfig config) {
         try {
             JsonObject dimension = new JsonObject();
 
-            // Use overworld dimension type (can be customized later with your dimension types)
+            // Use overworld dimension type (can be customized later)
             dimension.addProperty("type", "minecraft:overworld");
 
             // Create generator section with our registered generator
             JsonObject generator = new JsonObject();
             generator.addProperty("type", "terradyne:universal");
-            // Use the planetKey (e.g., "proximacentaurib") instead of config.getPlanetName()
             generator.addProperty("planet_name", planetKey);
 
-            // Biome source - fixed debug biome
+            // UPDATED: Physics-based biome source instead of fixed debug biome
             JsonObject biomeSource = new JsonObject();
-            biomeSource.addProperty("type", "minecraft:fixed");
-            biomeSource.addProperty("biome", "terradyne:debug");
+            biomeSource.addProperty("type", "terradyne:physics_based");
+            biomeSource.addProperty("planet_name", planetKey);
             generator.add("biome_source", biomeSource);
 
             dimension.add("generator", generator);
 
             return dimension;
+
         } catch (Exception e) {
             System.err.println("Error creating dimension JSON for " + planetKey + ": " + e.getMessage());
             throw e;
@@ -130,6 +128,6 @@ public class PlanetDimensionDataProvider implements DataProvider {
 
     @Override
     public String getName() {
-        return "Terradyne Planet Dimensions";
+        return "Terradyne Planet Dimensions (Physics Biomes)";
     }
 }

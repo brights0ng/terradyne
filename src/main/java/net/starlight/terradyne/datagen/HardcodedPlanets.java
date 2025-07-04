@@ -86,6 +86,54 @@ public class HardcodedPlanets {
             .setNoiseScale(0.0025);
 
     /**
+     * Kepler-Earth-b - Geologically active Earth-like planet with varied habitability
+     * Designed to showcase habitability map with clear habitable/uninhabitable zones
+     */
+    public static final PlanetConfig KEPLER_EARTH_B = new PlanetConfig("Kepler-Earth-b", "keplerearthb".hashCode())
+            .setCircumference(45000)              // Larger than Earth (more gravity, elevation effects)
+            .setDistanceFromStar(140)             // Slightly closer than Earth (warmer base temp)
+            .setCrustComposition(CrustComposition.SILICATE)
+            .setAtmosphereComposition(AtmosphereComposition.OXYGEN_RICH)
+            .setTectonicActivity(0.8)             // HIGH - creates dramatic mountains and deep valleys
+            .setWaterContent(0.6)                 // Moderate - wet coasts, dry continental interiors
+            .setCrustalThickness(32.0)            // Slightly thinner crust
+            .setAtmosphericDensity(0.9)           // Slightly thinner air (more wind variation)
+            .setRotationPeriod(0.9)               // Faster rotation (more weather patterns)
+            .setNoiseScale(0.0022);               // Slightly smaller tectonic plates
+
+    /**
+     * Extremis - Harsh planet with extreme habitability contrasts
+     * Most areas uninhabitable, with small pockets of marginal habitability
+     */
+    public static final PlanetConfig EXTREMIS = new PlanetConfig("Extremis", "extremis".hashCode())
+            .setCircumference(35000)              // Smaller planet
+            .setDistanceFromStar(95)              // Much closer to star (very hot base temperature)
+            .setCrustComposition(CrustComposition.BASALTIC)
+            .setAtmosphereComposition(AtmosphereComposition.CARBON_DIOXIDE)
+            .setTectonicActivity(0.9)             // EXTREME - massive elevation differences
+            .setWaterContent(0.2)                 // Very dry - limited water sources
+            .setCrustalThickness(25.0)            // Thin crust (more volcanic activity)
+            .setAtmosphericDensity(1.0)           // Thick atmosphere (high winds)
+            .setRotationPeriod(2.5)               // Slow rotation (extreme day/night temperature swings)
+            .setNoiseScale(0.003);                // Small, fractured tectonic plates
+
+    /**
+     * Spit - Oceanic planet with lots of life
+     * For a cute girl
+     */
+    public static final PlanetConfig SPIT = new PlanetConfig("Spit", "spit".hashCode())
+            .setCircumference(35000)              // Smaller planet
+            .setDistanceFromStar(140)              // Much closer to star (very hot base temperature)
+            .setCrustComposition(CrustComposition.BASALTIC)
+            .setAtmosphereComposition(AtmosphereComposition.OXYGEN_RICH)
+            .setTectonicActivity(0.1)             // EXTREME - massive elevation differences
+            .setWaterContent(1.0)                 // Very dry - limited water sources
+            .setCrustalThickness(25.0)            // Thin crust (more volcanic activity)
+            .setAtmosphericDensity(1.0)           // Thick atmosphere (high winds)
+            .setRotationPeriod(2.5)               // Slow rotation (extreme day/night temperature swings)
+            .setNoiseScale(0.003);
+
+    /**
      * Get all hardcoded planets as a map
      * FIXED: Add debugging to ensure all planets are included
      */
@@ -95,7 +143,11 @@ public class HardcodedPlanets {
                 "mars", MARS,
                 "venus", VENUS,
                 "kepler442b", KEPLER_442B,
-                "proximacentaurib", PROXIMA_CENTAURI_B
+                "proximacentaurib", PROXIMA_CENTAURI_B,
+                "keplerearthb", KEPLER_EARTH_B,
+                "extremis", EXTREMIS,
+                "spit", SPIT
+
         );
 
         // Debug logging

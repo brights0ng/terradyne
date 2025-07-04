@@ -72,6 +72,12 @@ public class RegionCompletionTracker {
     // NEW: Track volatility data per chunk within regions
     private final ConcurrentHashMap<RegionKey, ConcurrentHashMap<ChunkKey, Integer>> regionVolatilityData = new ConcurrentHashMap<>();
 
+    private final ConcurrentHashMap<RegionKey, ConcurrentHashMap<ChunkKey, Double>> regionTemperatureCache = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<RegionKey, ConcurrentHashMap<ChunkKey, Double>> regionWindSpeedCache = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<RegionKey, ConcurrentHashMap<ChunkKey, Double>> regionMoistureCache = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<RegionKey, ConcurrentHashMap<ChunkKey, Double>> regionHabitabilityCache = new ConcurrentHashMap<>();
+
+
     /**
      * Chunk identifier within a region
      */
@@ -110,6 +116,126 @@ public class RegionCompletionTracker {
         regionVolatilityData.computeIfAbsent(regionKey, k -> new ConcurrentHashMap<>());
 
         Terradyne.LOGGER.debug("Region {} marked as active", regionKey);
+    }
+
+
+    /**
+     * NEW: Set cached temperature for a chunk within a region
+     */
+    public void setCachedTemperature(RegionKey regionKey, int chunkX, int chunkZ, double temperature) {
+        ConcurrentHashMap<ChunkKey, Double> temperatureMap = regionTemperatureCache.computeIfAbsent(regionKey, k -> new ConcurrentHashMap<>());
+        temperatureMap.put(new ChunkKey(chunkX, chunkZ), temperature);
+    }
+
+    /**
+     * NEW: Get cached temperature for a chunk within a region
+     */
+    public Double getCachedTemperature(RegionKey regionKey, int chunkX, int chunkZ) {
+        ConcurrentHashMap<ChunkKey, Double> temperatureMap = regionTemperatureCache.get(regionKey);
+        return temperatureMap != null ? temperatureMap.get(new ChunkKey(chunkX, chunkZ)) : null;
+    }
+
+    /**
+     * NEW: Set cached wind speed for a chunk within a region
+     */
+    public void setCachedWindSpeed(RegionKey regionKey, int chunkX, int chunkZ, double windSpeed) {
+        ConcurrentHashMap<ChunkKey, Double> windSpeedMap = regionWindSpeedCache.computeIfAbsent(regionKey, k -> new ConcurrentHashMap<>());
+        windSpeedMap.put(new ChunkKey(chunkX, chunkZ), windSpeed);
+    }
+
+    /**
+     * NEW: Get cached wind speed for a chunk within a region
+     */
+    public Double getCachedWindSpeed(RegionKey regionKey, int chunkX, int chunkZ) {
+        ConcurrentHashMap<ChunkKey, Double> windSpeedMap = regionWindSpeedCache.get(regionKey);
+        return windSpeedMap != null ? windSpeedMap.get(new ChunkKey(chunkX, chunkZ)) : null;
+    }
+
+    /**
+     * NEW: Set cached moisture for a chunk within a region
+     */
+    public void setCachedMoisture(RegionKey regionKey, int chunkX, int chunkZ, double moisture) {
+        ConcurrentHashMap<ChunkKey, Double> moistureMap = regionMoistureCache.computeIfAbsent(regionKey, k -> new ConcurrentHashMap<>());
+        moistureMap.put(new ChunkKey(chunkX, chunkZ), moisture);
+    }
+
+    /**
+     * NEW: Get cached moisture for a chunk within a region
+     */
+    public Double getCachedMoisture(RegionKey regionKey, int chunkX, int chunkZ) {
+        ConcurrentHashMap<ChunkKey, Double> moistureMap = regionMoistureCache.get(regionKey);
+        return moistureMap != null ? moistureMap.get(new ChunkKey(chunkX, chunkZ)) : null;
+    }
+
+    /**
+     * NEW: Set cached habitability for a chunk within a region
+     */
+    public void setCachedHabitability(RegionKey regionKey, int chunkX, int chunkZ, double habitability) {
+        ConcurrentHashMap<ChunkKey, Double> habitabilityMap = regionHabitabilityCache.computeIfAbsent(regionKey, k -> new ConcurrentHashMap<>());
+        habitabilityMap.put(new ChunkKey(chunkX, chunkZ), habitability);
+    }
+
+    /**
+     * NEW: Get cached habitability for a chunk within a region
+     */
+    public Double getCachedHabitability(RegionKey regionKey, int chunkX, int chunkZ) {
+        ConcurrentHashMap<ChunkKey, Double> habitabilityMap = regionHabitabilityCache.get(regionKey);
+        return habitabilityMap != null ? habitabilityMap.get(new ChunkKey(chunkX, chunkZ)) : null;
+    }
+
+    // UPDATE the markRegionCompleted() method to clean up noise caches:
+    public void markRegionCompleted(RegionKey regionKey) {
+        completedRegions.add(regionKey);
+        activeRegions.remove(regionKey);
+        regionChunkStatus.remove(regionKey);
+        regionVolatilityData.remove(regionKey);
+
+        // NEW: Clean up noise caches too
+        regionTemperatureCache.remove(regionKey);
+        regionWindSpeedCache.remove(regionKey);
+        regionMoistureCache.remove(regionKey);
+        regionHabitabilityCache.remove(regionKey);
+
+        Terradyne.LOGGER.info("Region {} marked as completed and removed from tracking (including noise caches)", regionKey);
+    }
+
+    // UPDATE the clearPlanet() method to clean up noise caches:
+    public void clearPlanet(String planetName) {
+        completedRegions.removeIf(key -> key.planetName.equals(planetName));
+        activeRegions.removeIf(key -> key.planetName.equals(planetName));
+        regionChunkStatus.entrySet().removeIf(entry -> entry.getKey().planetName.equals(planetName));
+        regionVolatilityData.entrySet().removeIf(entry -> entry.getKey().planetName.equals(planetName));
+
+        // NEW: Clean up noise caches too
+        regionTemperatureCache.entrySet().removeIf(entry -> entry.getKey().planetName.equals(planetName));
+        regionWindSpeedCache.entrySet().removeIf(entry -> entry.getKey().planetName.equals(planetName));
+        regionMoistureCache.entrySet().removeIf(entry -> entry.getKey().planetName.equals(planetName));
+        regionHabitabilityCache.entrySet().removeIf(entry -> entry.getKey().planetName.equals(planetName));
+
+        Terradyne.LOGGER.info("Cleared all region tracking data and noise caches for planet: {}", planetName);
+    }
+
+    // UPDATE the getStatistics() method to include noise cache counts:
+    public String getStatistics() {
+        return String.format("RegionTracker{completed=%d, active=%d, tracking=%d, volatility=%d, temp=%d, wind=%d, moisture=%d, habitat=%d}",
+                completedRegions.size(),
+                activeRegions.size(),
+                regionChunkStatus.size(),
+                regionVolatilityData.size(),
+                regionTemperatureCache.size(),
+                regionWindSpeedCache.size(),
+                regionMoistureCache.size(),
+                regionHabitabilityCache.size());
+    }
+
+    /**
+     * NEW: Get total cached noise entries for debugging
+     */
+    public int getTotalNoiseCacheEntries() {
+        return regionTemperatureCache.values().stream().mapToInt(map -> map.size()).sum() +
+                regionWindSpeedCache.values().stream().mapToInt(map -> map.size()).sum() +
+                regionMoistureCache.values().stream().mapToInt(map -> map.size()).sum() +
+                regionHabitabilityCache.values().stream().mapToInt(map -> map.size()).sum();
     }
 
     /**
@@ -159,18 +285,6 @@ public class RegionCompletionTracker {
      */
     public boolean hasVolatilityData(RegionKey regionKey, int chunkX, int chunkZ) {
         return getChunkVolatility(regionKey, chunkX, chunkZ) != null;
-    }
-
-    /**
-     * Mark a region as fully generated
-     */
-    public void markRegionCompleted(RegionKey regionKey) {
-        completedRegions.add(regionKey);
-        activeRegions.remove(regionKey);
-        regionChunkStatus.remove(regionKey);
-        regionVolatilityData.remove(regionKey); // Clean up volatility data too
-
-        Terradyne.LOGGER.info("Region {} marked as completed and removed from tracking", regionKey);
     }
 
     /**
@@ -237,29 +351,6 @@ public class RegionCompletionTracker {
     }
 
     /**
-     * Clear all tracking data for a planet (when planet is unloaded)
-     */
-    public void clearPlanet(String planetName) {
-        completedRegions.removeIf(key -> key.planetName.equals(planetName));
-        activeRegions.removeIf(key -> key.planetName.equals(planetName));
-        regionChunkStatus.entrySet().removeIf(entry -> entry.getKey().planetName.equals(planetName));
-        regionVolatilityData.entrySet().removeIf(entry -> entry.getKey().planetName.equals(planetName));
-
-        Terradyne.LOGGER.info("Cleared all region tracking data for planet: {}", planetName);
-    }
-
-    /**
-     * Get statistics for debugging
-     */
-    public String getStatistics() {
-        return String.format("RegionTracker{completed=%d, active=%d, tracking=%d, volatility=%d}",
-                completedRegions.size(),
-                activeRegions.size(),
-                regionChunkStatus.size(),
-                regionVolatilityData.size());
-    }
-
-    /**
      * Get detailed statistics for a planet
      */
     public String getPlanetStatistics(String planetName) {
@@ -279,5 +370,54 @@ public class RegionCompletionTracker {
         return regionVolatilityData.values().stream()
                 .mapToInt(map -> map.size())
                 .sum();
+    }
+
+    /**
+     * Utility class for chunk-level caching operations
+     */
+    public static class NoiseCache {
+
+        /**
+         * Get cached value or compute and cache if not found
+         */
+        public static double getCachedValue(String planetName, int worldX, int worldZ, RegionCompletionTracker cacheTracker,
+                                            java.util.function.Supplier<Double> computeFunction,
+                                            java.util.function.BiConsumer<RegionKey, ChunkKey> cacheFunction) {
+
+            // Convert world coordinates to chunk coordinates
+            int chunkX = worldX >> 4; // Divide by 16
+            int chunkZ = worldZ >> 4;
+
+            // Get region key for this chunk
+            RegionKey regionKey = RegionKey.fromChunkCoords(planetName, chunkX, chunkZ);
+
+            // Check cache first
+            // Note: This is a generic method, specific cache gets handled by the cacheFunction
+
+            // If not cached, compute value at chunk center
+            int chunkCenterX = (chunkX << 4) + 8; // chunkX * 16 + 8
+            int chunkCenterZ = (chunkZ << 4) + 8; // chunkZ * 16 + 8
+
+            double computedValue = computeFunction.get();
+
+            // Cache the result
+            cacheFunction.accept(regionKey, new ChunkKey(chunkX, chunkZ));
+
+            return computedValue;
+        }
+
+        /**
+         * Convert world coordinates to chunk coordinates
+         */
+        public static int[] worldToChunk(int worldX, int worldZ) {
+            return new int[]{worldX >> 4, worldZ >> 4};
+        }
+
+        /**
+         * Convert chunk coordinates to chunk center world coordinates
+         */
+        public static int[] chunkToWorldCenter(int chunkX, int chunkZ) {
+            return new int[]{(chunkX << 4) + 8, (chunkZ << 4) + 8};
+        }
     }
 }

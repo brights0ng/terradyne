@@ -19,8 +19,26 @@ public class ModBlocks {
     
     // Block definitions
     public static final Block QUARTZITE = registerBlock("quartzite",
-            new PillarBlock(FabricBlockSettings.create()
+            new Block(FabricBlockSettings.create()
                     .strength(2.0f, 7.0f)  // Slightly harder than granite
+                    .requiresTool()         // Needs pickaxe
+                    .sounds(BlockSoundGroup.STONE)  // Same sound as granite
+            ));
+    public static final Block SALT_BLOCK = registerBlock("salt_block",
+            new Block(FabricBlockSettings.create()
+                    .strength(2.0f, 3.0f)  // Slightly harder than granite
+                    .requiresTool()         // Needs pickaxe
+                    .sounds(BlockSoundGroup.STONE)  // Same sound as granite
+            ));
+    public static final Block LIMESTONE = registerBlock("limestone",
+            new Block(FabricBlockSettings.create()
+                    .strength(2.0f, 5.0f)  // Slightly harder than granite
+                    .requiresTool()         // Needs pickaxe
+                    .sounds(BlockSoundGroup.STONE)  // Same sound as granite
+            ));
+    public static final Block DOLOMITE = registerBlock("dolomite",
+            new Block(FabricBlockSettings.create()
+                    .strength(2.0f, 6.0f)  // Slightly harder than granite
                     .requiresTool()         // Needs pickaxe
                     .sounds(BlockSoundGroup.STONE)  // Same sound as granite
             ));
@@ -50,5 +68,15 @@ public class ModBlocks {
         // Add to creative inventory
         ItemGroupEvents.modifyEntriesEvent(ItemGroups.BUILDING_BLOCKS).register(content -> {
             content.add(QUARTZITE);
-        });    }
+        });
+        ItemGroupEvents.modifyEntriesEvent(ItemGroups.BUILDING_BLOCKS).register(content -> {
+            content.add(SALT_BLOCK);
+        });
+        ItemGroupEvents.modifyEntriesEvent(ItemGroups.BUILDING_BLOCKS).register(content -> {
+            content.add(LIMESTONE);
+        });
+        ItemGroupEvents.modifyEntriesEvent(ItemGroups.BUILDING_BLOCKS).register(content -> {
+            content.add(DOLOMITE);
+        });
+    }
 }

@@ -1,8 +1,12 @@
 package net.starlight.terradyne.planet.mapping;
 
+import net.minecraft.registry.RegistryKey;
 import net.minecraft.server.MinecraftServer;
+import net.minecraft.world.biome.Biome;
 import net.starlight.terradyne.Terradyne;
+import net.starlight.terradyne.planet.biome.BiomeClassificationSystem;
 import net.starlight.terradyne.planet.physics.PlanetModel;
+import net.starlight.terradyne.planet.terrain.UniversalChunkGenerator;
 
 import javax.imageio.ImageIO;
 import java.awt.*;
@@ -10,10 +14,13 @@ import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * Exports climate and terrain maps as PNG images for visualization
  * Each pixel represents one chunk (16x16 blocks) sampled at chunk center
+ * UPDATED: Now includes physics-based biome map export
  */
 public class ClimateMapExporter {
 
@@ -45,6 +52,8 @@ public class ClimateMapExporter {
             exportTemperatureMap(planetModel, exportDir, planetName);
             exportWindSpeedMap(planetModel, exportDir, planetName);
             exportHumidityMap(planetModel, exportDir, planetName);
+            exportVolatilityMap(planetModel, exportDir, planetName); // NEW
+            exportBiomeMap(planetModel, exportDir, planetName);      // NEW
 
             Terradyne.LOGGER.info("✅ Climate maps exported to: {}", exportDir);
 
@@ -199,6 +208,80 @@ public class ClimateMapExporter {
         Terradyne.LOGGER.info("  ✓ Humidity map: {}", outputPath.getFileName());
     }
 
+    /**
+     * NEW: Export volatility map showing tectonic plate boundaries
+     */
+    private static void exportVolatilityMap(PlanetModel planetModel, Path exportDir, String planetName) throws IOException {
+        Terradyne.LOGGER.info("Exporting volatility map...");
+
+        BufferedImage image = new BufferedImage(IMAGE_SIZE, IMAGE_SIZE, BufferedImage.TYPE_INT_RGB);
+
+        for (int pixelX = 0; pixelX < IMAGE_SIZE; pixelX++) {
+            for (int pixelZ = 0; pixelZ < IMAGE_SIZE; pixelZ++) {
+                int[] worldCoords = pixelToWorldCoords(pixelX, pixelZ);
+                int volatility = planetModel.getVolatilityAt(worldCoords[0], worldCoords[1]);
+
+                Color color = getVolatilityColor(volatility);
+                image.setRGB(pixelX, pixelZ, color.getRGB());
+            }
+        }
+
+        Path outputPath = exportDir.resolve(planetName + "_volatility_0_0_" + IMAGE_SIZE + ".png");
+        ImageIO.write(image, "PNG", outputPath.toFile());
+        Terradyne.LOGGER.info("  ✓ Volatility map: {} (plate boundaries and geological activity)", outputPath.getFileName());
+    }
+
+    /**
+     * NEW: Export biome map showing physics-based biome classification
+     */
+    private static void exportBiomeMap(PlanetModel planetModel, Path exportDir, String planetName) throws IOException {
+        Terradyne.LOGGER.info("Exporting biome map...");
+
+        BufferedImage image = new BufferedImage(IMAGE_SIZE, IMAGE_SIZE, BufferedImage.TYPE_INT_RGB);
+        BiomeClassificationSystem classifier = new BiomeClassificationSystem(planetModel);
+
+        // Track biome usage for statistics
+        Map<RegistryKey<Biome>, Integer> biomeCount = new HashMap<>();
+
+        for (int pixelX = 0; pixelX < IMAGE_SIZE; pixelX++) {
+            for (int pixelZ = 0; pixelZ < IMAGE_SIZE; pixelZ++) {
+                int[] worldCoords = pixelToWorldCoords(pixelX, pixelZ);
+
+                try {
+                    // Classify biome using physics system
+                    RegistryKey<Biome> biomeKey = classifier.classifyBiome(worldCoords[0], worldCoords[1]);
+
+                    // Count biome usage
+                    biomeCount.put(biomeKey, biomeCount.getOrDefault(biomeKey, 0) + 1);
+
+                    // Get appropriate color for this biome
+                    Color color = getBiomeColor(biomeKey);
+                    image.setRGB(pixelX, pixelZ, color.getRGB());
+
+                } catch (Exception e) {
+                    // Fallback to debug color on error
+                    image.setRGB(pixelX, pixelZ, Color.MAGENTA.getRGB());
+                }
+            }
+        }
+
+        Path outputPath = exportDir.resolve(planetName + "_biomes_0_0_" + IMAGE_SIZE + ".png");
+        ImageIO.write(image, "PNG", outputPath.toFile());
+
+        // Log biome statistics
+        Terradyne.LOGGER.info("  ✓ Biome map: {} ({} different biomes found)", outputPath.getFileName(), biomeCount.size());
+
+        // Log top 10 most common biomes
+        biomeCount.entrySet().stream()
+                .sorted(Map.Entry.<RegistryKey<Biome>, Integer>comparingByValue().reversed())
+                .limit(10)
+                .forEach(entry -> {
+                    String biomeName = entry.getKey().getValue().getPath();
+                    double percentage = (entry.getValue() * 100.0) / (IMAGE_SIZE * IMAGE_SIZE);
+                    Terradyne.LOGGER.info("    {} - {:.1f}%", biomeName, percentage);
+                });
+    }
+
     // === COLOR MAPPING METHODS ===
 
     /**
@@ -308,6 +391,136 @@ public class ClimateMapExporter {
         }
     }
 
+    /**
+     * Generate volatility color: Black (stable) → Yellow → Red (active boundary)
+     */
+    private static Color getVolatilityColor(int volatility) {
+        switch (volatility) {
+            case 0: return new Color(0, 0, 0);         // Black - stable continental
+            case 1: return new Color(64, 64, 64);      // Dark gray
+            case 2: return new Color(128, 128, 0);     // Dark yellow
+            case 3: return new Color(255, 255, 0);     // Yellow
+            case 4: return new Color(255, 128, 0);     // Orange
+            case 5: return new Color(255, 0, 0);       // Red - active boundary
+            default: return new Color(255, 0, 255);    // Magenta - error
+        }
+    }
+
+    /**
+     * Generate biome color based on biome type and category
+     * Uses distinctive colors for each biome category
+     */
+    private static Color getBiomeColor(RegistryKey<Biome> biomeKey) {
+        String biomeName = biomeKey.getValue().getPath();
+
+        // === WATER BIOMES (Blues) ===
+        if (biomeName.contains("ocean")) {
+            if (biomeName.contains("frozen")) return new Color(135, 206, 250);      // Light sky blue
+            if (biomeName.contains("frigid")) return new Color(70, 130, 180);       // Steel blue
+            if (biomeName.contains("dead")) return new Color(47, 79, 79);           // Dark slate gray
+            if (biomeName.contains("warm")) return new Color(0, 191, 255);          // Deep sky blue
+            if (biomeName.contains("coral")) return new Color(255, 127, 80);        // Coral
+            if (biomeName.contains("tropical")) return new Color(64, 224, 208);     // Turquoise
+            if (biomeName.contains("boiling")) return new Color(255, 69, 0);        // Red orange
+            return new Color(0, 100, 200); // Default ocean blue
+        }
+
+        // === MOUNTAIN BIOMES (Grays/Browns) ===
+        if (biomeName.contains("peak") || biomeName.contains("mountain") || biomeName.contains("volcanic")) {
+            if (biomeName.contains("frozen")) return new Color(248, 248, 255);      // Ghost white
+            if (biomeName.contains("foothills")) return new Color(139, 137, 137);   // Dim gray
+            if (biomeName.contains("alpine")) return new Color(192, 192, 192);      // Silver
+            if (biomeName.contains("volcanic_wasteland")) return new Color(105, 105, 105); // Dim gray
+            if (biomeName.contains("volcanic")) return new Color(160, 82, 45);      // Saddle brown
+            return new Color(128, 128, 128); // Default mountain gray
+        }
+
+        // === HIGHLAND BIOMES (Green-Browns) ===
+        if (biomeName.contains("highland") || biomeName.contains("hills")) {
+            if (biomeName.contains("barren")) return new Color(160, 82, 45);        // Saddle brown
+            if (biomeName.contains("windswept")) return new Color(189, 183, 107);   // Dark khaki
+            if (biomeName.contains("rolling")) return new Color(107, 142, 35);      // Olive drab
+            if (biomeName.contains("tundra")) return new Color(176, 196, 222);      // Light steel blue
+            if (biomeName.contains("forested")) return new Color(34, 139, 34);      // Forest green
+            if (biomeName.contains("tropical")) return new Color(50, 205, 50);      // Lime green
+            return new Color(154, 205, 50); // Default highland yellow green
+        }
+
+        // === HOSTILE CONTINENTAL BIOMES (Reds/Oranges) ===
+        if (biomeName.contains("wasteland") || biomeName.contains("scorched") || biomeName.contains("dust")) {
+            if (biomeName.contains("frozen")) return new Color(230, 230, 250);      // Lavender
+            if (biomeName.contains("rocky")) return new Color(205, 133, 63);        // Peru
+            if (biomeName.contains("scorched")) return new Color(255, 69, 0);       // Orange red
+            if (biomeName.contains("sandy")) return new Color(238, 203, 173);       // Navajo white
+            if (biomeName.contains("mesa")) return new Color(222, 184, 135);        // Burlywood
+            if (biomeName.contains("dust")) return new Color(188, 143, 143);        // Rosy brown
+            return new Color(220, 20, 60); // Default hostile crimson
+        }
+
+        // === DESERT BIOMES (Yellows/Tans) ===
+        if (biomeName.contains("desert")) {
+            if (biomeName.contains("hot")) return new Color(255, 140, 0);           // Dark orange
+            return new Color(238, 203, 173); // Navajo white
+        }
+
+        // === MARGINAL CONTINENTAL BIOMES (Yellows/Light Browns) ===
+        if (biomeName.contains("steppes") || biomeName.contains("savanna") || biomeName.contains("meadows")) {
+            if (biomeName.contains("cold")) return new Color(175, 238, 238);        // Pale turquoise
+            if (biomeName.contains("dry")) return new Color(240, 230, 140);         // Khaki
+            if (biomeName.contains("temperate")) return new Color(173, 255, 47);    // Green yellow
+            if (biomeName.contains("meadows")) return new Color(152, 251, 152);     // Pale green
+            if (biomeName.contains("savanna")) return new Color(255, 228, 181);     // Moccasin
+            if (biomeName.contains("tropical_grassland")) return new Color(255, 215, 0); // Gold
+            return new Color(189, 183, 107); // Default marginal dark khaki
+        }
+
+        // === THRIVING CONTINENTAL BIOMES (Greens) ===
+        // Cold Zone
+        if (biomeName.contains("snowy") || biomeName.contains("taiga") || biomeName.contains("snow")) {
+            if (biomeName.contains("snowy_plains")) return new Color(255, 250, 250); // Snow
+            if (biomeName.contains("taiga")) return new Color(25, 25, 112);          // Midnight blue
+            if (biomeName.contains("snow_forest")) return new Color(72, 61, 139);    // Dark slate blue
+            if (biomeName.contains("alpine_meadows")) return new Color(173, 216, 230); // Light blue
+            return new Color(176, 196, 222); // Default cold light steel blue
+        }
+
+        // Temperate Zone
+        if (biomeName.contains("plains") || biomeName.contains("forest") || biomeName.contains("wetlands")) {
+            if (biomeName.contains("plains") && !biomeName.contains("mixed")) return new Color(124, 252, 0); // Lawn green
+            if (biomeName.contains("mixed_plains")) return new Color(173, 255, 47);  // Green yellow
+            if (biomeName.contains("wetlands")) return new Color(46, 139, 87);       // Sea green
+            if (biomeName.contains("oak")) return new Color(34, 139, 34);            // Forest green
+            if (biomeName.contains("mixed_forest")) return new Color(0, 100, 0);     // Dark green
+            if (biomeName.contains("dense_forest")) return new Color(0, 128, 0);     // Green
+            if (biomeName.contains("mountain_forest")) return new Color(85, 107, 47); // Dark olive green
+            return new Color(0, 128, 0); // Default temperate green
+        }
+
+        // Warm Zone
+        if (biomeName.contains("shrubland") || biomeName.contains("rainforest") || biomeName.contains("jungle")) {
+            if (biomeName.contains("hot_shrubland")) return new Color(255, 165, 0);  // Orange
+            if (biomeName.contains("windy_steppes")) return new Color(218, 165, 32); // Goldenrod
+            if (biomeName.contains("temperate_rainforest")) return new Color(0, 100, 0); // Dark green
+            if (biomeName.contains("cloud_forest")) return new Color(102, 205, 170); // Medium aquamarine
+            if (biomeName.contains("jungle")) return new Color(0, 128, 0);           // Green
+            if (biomeName.contains("tropical_rainforest")) return new Color(34, 139, 34); // Forest green
+            return new Color(50, 205, 50); // Default warm lime green
+        }
+
+        // Hot Zone
+        if (biomeName.contains("swamp")) {
+            return new Color(107, 142, 35); // Olive drab
+        }
+
+        // === SPECIAL BIOMES ===
+        if (biomeName.contains("extreme_frozen")) return new Color(248, 248, 255);  // Ghost white
+        if (biomeName.contains("molten")) return new Color(139, 0, 0);              // Dark red
+        if (biomeName.contains("debug")) return new Color(255, 0, 255);             // Magenta
+
+        // === FALLBACK ===
+        return new Color(128, 128, 128); // Gray for unknown biomes
+    }
+
     // === UTILITY METHODS ===
 
     /**
@@ -347,14 +560,14 @@ public class ClimateMapExporter {
             net.minecraft.world.gen.chunk.ChunkGenerator chunkGenerator = world.getChunkManager().getChunkGenerator();
 
             // Check if it's our Universal Chunk Generator
-            if (!(chunkGenerator instanceof net.starlight.terradyne.planet.chunk.UniversalChunkGenerator)) {
+            if (!(chunkGenerator instanceof UniversalChunkGenerator)) {
                 Terradyne.LOGGER.error("World '{}' does not use UniversalChunkGenerator", planetName);
                 return null;
             }
 
             // Cast and get the planet model
-            net.starlight.terradyne.planet.chunk.UniversalChunkGenerator universalGenerator =
-                    (net.starlight.terradyne.planet.chunk.UniversalChunkGenerator) chunkGenerator;
+            UniversalChunkGenerator universalGenerator =
+                    (UniversalChunkGenerator) chunkGenerator;
 
             PlanetModel planetModel = universalGenerator.getPlanetModel();
             if (planetModel == null) {

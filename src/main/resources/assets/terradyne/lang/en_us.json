@@ -1,3 +1,6 @@
 {
-  "block.terradyne.quartzite": "Quartzite"
+  "block.terradyne.quartzite": "Quartzite",
+  "block.terradyne.salt_block": "Salt Block",
+  "block.terradyne.limestone": "Limestone",
+  "block.terradyne.dolomite": "Dolomite"
 }

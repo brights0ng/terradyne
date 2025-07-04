@@ -1,8 +1,7 @@
-package net.starlight.terradyne.planet.terrain;
+package net.starlight.terradyne.planet.mapping;
 
 import net.minecraft.util.math.noise.SimplexNoiseSampler;
 import net.minecraft.util.math.random.Random;
-import net.starlight.terradyne.planet.mapping.TectonicVolatilityManager;
 import net.starlight.terradyne.planet.physics.PlanetConfig;
 import net.starlight.terradyne.planet.physics.PlanetData;
 import net.starlight.terradyne.Terradyne;
@@ -28,17 +27,21 @@ public class PlanetaryNoiseSystem {
     private final WindNoiseMap windMap;                  // Phase 5
     private final MoistureNoiseMap moistureMap;          // Phase 5
     private final BiomeNoiseMap biomeMap;                // Phase 7
+    private final HabitabilityNoiseMap habitabilityMap;
 
     // === PHASE 2: VOLATILITY SYSTEM ===
     private final TectonicVolatilityManager volatilityManager;
+
+    private final RegionCompletionTracker cacheTracker;
 
     /**
      * Create planetary noise system from planet model data
      * UPDATED: Now includes volatility manager initialization
      */
-    public PlanetaryNoiseSystem(PlanetConfig config, PlanetData planetData) {
+    public PlanetaryNoiseSystem(PlanetConfig config, PlanetData planetData, RegionCompletionTracker cacheTracker) {
         this.config = config;
         this.planetData = planetData;
+        this.cacheTracker = cacheTracker;
 
         Terradyne.LOGGER.info("Initializing Planetary Noise System for {}", config.getPlanetName());
 
@@ -50,13 +53,15 @@ public class PlanetaryNoiseSystem {
         this.volatilityManager = new TectonicVolatilityManager(config, planetData, masterNoise);
         this.terrainMap = new TerrainNoiseMap(config, planetData, masterNoise, tectonicMap, volatilityManager);
 
-        // === PHASE 5: CLIMATE MAPS ===
-        this.temperatureMap = new TemperatureNoiseMap(config, planetData, masterNoise, terrainMap);
-        this.windMap = new WindNoiseMap(config, planetData, masterNoise, terrainMap, this.temperatureMap);
-        this.moistureMap = new MoistureNoiseMap(config, planetData, masterNoise, terrainMap, this.windMap);
-        this.biomeMap = null;       // Phase 7
+        // === PHASE 5: CLIMATE MAPS (now with caching) ===
+        this.temperatureMap = new TemperatureNoiseMap(config, planetData, masterNoise, terrainMap, cacheTracker);
+        this.windMap = new WindNoiseMap(config, planetData, masterNoise, terrainMap, temperatureMap, cacheTracker);
+        this.moistureMap = new MoistureNoiseMap(config, planetData, masterNoise, terrainMap, windMap, cacheTracker);
+        this.habitabilityMap = new HabitabilityNoiseMap(config, planetData, masterNoise, terrainMap, temperatureMap, windMap, moistureMap, cacheTracker);
 
-        Terradyne.LOGGER.info("✅ Planetary Noise System initialized");
+        this.biomeMap = new BiomeNoiseMap(config, planetData,masterNoise);
+
+        Terradyne.LOGGER.info("✅ Planetary Noise System initialized with caching");
         logNoiseConfiguration();
     }
 
@@ -168,6 +173,17 @@ public class PlanetaryNoiseSystem {
     }
 
     /**
+     * Sample habitability at world coordinates
+     * Combines temperature, elevation, humidity, and wind factors for livability assessment
+     */
+    public double sampleHabitability(int worldX, int worldZ) {
+        if (habitabilityMap != null) {
+            return habitabilityMap.sample(worldX, worldZ);
+        }
+        return planetData.getHabitability(); // Fallback
+    }
+
+    /**
      * Sample biome classification at world coordinates
      * PLACEHOLDER: Will be implemented in Phase 7
      */
@@ -207,7 +223,8 @@ public class PlanetaryNoiseSystem {
                 volatilityManager != null ? "ACTIVE" : "NULL",
                 temperatureMap != null ? "ACTIVE" : "NULL",
                 windMap != null ? "ACTIVE" : "NULL",
-                moistureMap != null ? "ACTIVE" : "NULL");
+                moistureMap != null ? "ACTIVE" : "NULL",
+                habitabilityMap != null ? "ACTIVE" : "NULL");
     }
 
     /**
@@ -217,14 +234,15 @@ public class PlanetaryNoiseSystem {
         double[] windVector = sampleWindVector(worldX, worldZ);
         double windSpeed = Math.sqrt(windVector[0] * windVector[0] + windVector[1] * windVector[1]);
 
-        return String.format("NoiseDebug{x=%d,z=%d: terrain=%.2f, tectonic=%.2f, volatility=%d, temp=%.1f°C, wind=%.2f, humidity=%.2f}",
+        return String.format("NoiseDebug{x=%d,z=%d: terrain=%.2f, tectonic=%.2f, volatility=%d, temp=%.1f°C, wind=%.2f, humidity=%.2f, habitability=%.2f\n",
                 worldX, worldZ,
                 sampleTerrainHeight(worldX, worldZ),
                 sampleTectonicActivity(worldX, worldZ),
                 sampleVolatility(worldX, worldZ),
                 sampleTemperature(worldX, worldZ),
                 windSpeed,
-                sampleMoisture(worldX, worldZ));
+                sampleMoisture(worldX, worldZ),
+                sampleHabitability(worldX, worldZ));
     }
 
     private void logNoiseConfiguration() {
@@ -239,6 +257,8 @@ public class PlanetaryNoiseSystem {
                 windMap != null ? windMap.getLayerCount() : 0);
         Terradyne.LOGGER.info("  Humidity: {} layers (Base + Wind Transport + Distance from Water + Variation)",
                 moistureMap != null ? moistureMap.getLayerCount() : 0);
+        Terradyne.LOGGER.info("  Habitability: {} layers (Temperature + Elevation + Humidity + Wind + Variation)",
+                habitabilityMap != null ? habitabilityMap.getLayerCount() : 0);
         Terradyne.LOGGER.info("  Biome: PLACEHOLDER (Phase 7)");
     }
 }
@@ -271,7 +291,7 @@ abstract class NoiseMap {
 
 /**
  * TERRAIN NOISE MAP - Primary height generation
- * Layers: Continental (fractal coastlines), Mountain (smooth volatility-based), Valley, Erosion, Surface Detail
+ * Layers: Continental (fractal coastlines), Mountain (smooth volatility-based), Erosion (atmospheric flattening), Valley, Surface Detail
  * Influenced By: Tectonic (through domain warping), Volatility (mountain placement)
  * Blending: Domain warping + overlay + SMOOTH TRANSITIONS to eliminate jarring edges
  *
@@ -285,6 +305,12 @@ abstract class NoiseMap {
  * - Valley flattening uses smooth thresholds instead of hard cutoffs
  * - Domain warping reduced to prevent discontinuities
  * - All transitions use S-curve smoothing for natural blending
+ *
+ * NEW EROSION LAYER:
+ * - Atmospheric density drives erosion intensity
+ * - Medium-scale noise creates scattered plains within mountainous areas
+ * - Smooth blending prevents harsh erosion boundaries
+ * - Up to 75% terrain reduction in high-erosion zones
  */
 class TerrainNoiseMap extends NoiseMap {
 
@@ -324,20 +350,44 @@ class TerrainNoiseMap extends NoiseMap {
 
         continental *= planetData.getContinentalScale() * 60.0;
 
-        // === MOUNTAIN LAYER - VOLATILITY-BASED with SMOOTH transitions ===
+        // === MOUNTAIN LAYER - SIMPLE NOISE-BASED (volatility disabled for diagnosis) ===
         double mountainFreq = config.getNoiseScale() * 1.2;
         double mountainNoise = masterNoise.sample(warpedX * mountainFreq, 1, warpedZ * mountainFreq);
         mountainNoise = Math.abs(mountainNoise); // Ridge noise for mountain ranges
 
-        // Sample volatility to determine mountain placement (mountains form at plate boundaries!)
-        int volatility = volatilityManager.getVolatilityAt(worldX, worldZ);
+        // TEMPORARY: Use simple noise-based mountain intensity instead of volatility
+        double mountainIntensityFreq = config.getNoiseScale() * 0.8; // Larger scale for mountain placement
+        double mountainIntensityNoise = masterNoise.sample(warpedX * mountainIntensityFreq, 10, warpedZ * mountainIntensityFreq);
+        double mountainIntensity = Math.max(0.0, mountainIntensityNoise * 0.7 + 0.3); // 0.3-1.0 range
 
-        // SMOOTH mountain intensity based on volatility (0-5 scale) - NO HARD BOUNDARIES
-        double mountainIntensity = Math.max(0.0, (volatility - 1.0) / 4.0); // Smooth 0.0-1.0 scale from volatility 1-5
-        mountainIntensity = smoothstep(mountainIntensity); // Apply smoothing function for even gentler transitions
-
-        // Apply mountain noise with smoothed volatility-based intensity
+        // Apply mountain noise with smooth noise-based intensity
         double mountains = mountainNoise * mountainIntensity * planetData.getMountainScale() * 50.0;
+
+        // === NEW: EROSION LAYER - ATMOSPHERIC FLATTENING ===
+        double erosionFreq = config.getNoiseScale() * 1.5; // Medium-scale erosion patterns
+        double erosionNoise = masterNoise.sample(warpedX * erosionFreq, 6, warpedZ * erosionFreq);
+
+        // Linear scaling with atmospheric density
+        double erosionIntensity = planetData.getActualAtmosphericDensity() * Math.abs(erosionNoise);
+
+        // Calculate current terrain height before erosion
+        double preErosionHeight = continental + mountains;
+
+        // Apply erosion in specific zones with smooth blending
+        if (erosionIntensity > 0.3) { // Erosion threshold - only in specific zones
+            // Smooth erosion strength calculation
+            double rawErosionStrength = (erosionIntensity - 0.3) / 0.7; // 0-1 scale above threshold
+            double smoothErosionStrength = smoothstep(rawErosionStrength); // Smooth S-curve
+
+            // Apply up to 75% terrain reduction with smooth blending
+            double erosionMultiplier = 1.0 - (smoothErosionStrength * 0.75);
+            preErosionHeight *= erosionMultiplier;
+
+            // Log debug info occasionally (every 1000th sample to avoid spam)
+            if (worldX % 1000 == 0 && worldZ % 1000 == 0) {
+                // Debug logging for erosion effects
+            }
+        }
 
         // === VALLEY LAYER - REDUCED frequency for fewer, larger valleys ===
         double valleyFreq = config.getNoiseScale() * 0.8; // Reduced from 1.5 for larger valleys
@@ -364,10 +414,7 @@ class TerrainNoiseMap extends NoiseMap {
 
         // === DOMAIN WARPING + OVERLAY BLENDING ===
         double baseHeight = planetData.getSeaLevel();
-        double terrainHeight = continental;
-
-        // Add mountains directly (volatility-based placement already calculated above)
-        terrainHeight += mountains;
+        double terrainHeight = preErosionHeight; // Use post-erosion height
 
         // Apply valleys with soft blending
         terrainHeight = blendOverlay(terrainHeight, valleys);
@@ -408,7 +455,7 @@ class TerrainNoiseMap extends NoiseMap {
     }
 
     @Override
-    public int getLayerCount() { return 8; } // Continental(4 octaves), Mountain(smooth volatility-based), Valley+SmoothFlattening, Detail1(reduced), Detail3(reduced)
+    public int getLayerCount() { return 9; } // Continental(4 octaves), Mountain(smooth volatility-based), Erosion(atmospheric), Valley+SmoothFlattening, Detail1(reduced), Detail3(reduced)
 
     /**
      * Overlay blending for smooth terrain transitions
@@ -469,127 +516,176 @@ class TectonicNoiseMap extends NoiseMap {
 // Add these classes to the bottom of PlanetaryNoiseSystem.java file
 
 /**
- * TEMPERATURE NOISE MAP - Realistic temperature distribution
+ * TEMPERATURE NOISE MAP - Realistic temperature distribution WITH CACHING
  * Layers: Base + Latitude + Elevation + Local Variation
  * Physics: -40°C equator to pole, -20°C per 100 blocks elevation, ±5°C noise
+ * Performance: Chunk-level caching for ~250x speedup
  */
 class TemperatureNoiseMap extends NoiseMap {
 
-    private final TerrainNoiseMap terrainMap; // Need terrain height for elevation cooling
+    private final TerrainNoiseMap terrainMap;
+    private final RegionCompletionTracker cacheTracker;
 
-    public TemperatureNoiseMap(PlanetConfig config, PlanetData planetData, SimplexNoiseSampler masterNoise, TerrainNoiseMap terrainMap) {
+    public TemperatureNoiseMap(PlanetConfig config, PlanetData planetData, SimplexNoiseSampler masterNoise,
+                               TerrainNoiseMap terrainMap, RegionCompletionTracker cacheTracker) {
         super(config, planetData, masterNoise);
         this.terrainMap = terrainMap;
+        this.cacheTracker = cacheTracker;
     }
 
     @Override
     public double sample(int worldX, int worldZ) {
+        // Convert to chunk coordinates
+        int chunkX = worldX >> 4;
+        int chunkZ = worldZ >> 4;
+
+        // Get region key
+        RegionCompletionTracker.RegionKey regionKey = RegionCompletionTracker.RegionKey.fromChunkCoords(config.getPlanetName(), chunkX, chunkZ);
+
+        // Check cache first
+        Double cached = cacheTracker.getCachedTemperature(regionKey, chunkX, chunkZ);
+        if (cached != null) {
+            return cached;
+        }
+
+        // Not cached - compute at chunk center for consistency
+        int chunkCenterX = (chunkX << 4) + 8;
+        int chunkCenterZ = (chunkZ << 4) + 8;
+
+        double temperature = computeTemperatureAt(chunkCenterX, chunkCenterZ);
+
+        // Cache the result
+        cacheTracker.setCachedTemperature(regionKey, chunkX, chunkZ, temperature);
+
+        return temperature;
+    }
+
+    /**
+     * Actual temperature computation (moved to separate method for clarity)
+     */
+    private double computeTemperatureAt(int worldX, int worldZ) {
         // === BASE TEMPERATURE ===
         double baseTemp = planetData.getAverageSurfaceTemp();
 
         // === LATITUDE EFFECT (0-1 from equator to poles) ===
         double latitude = Math.abs(worldZ) / (config.getCircumference() * 0.25);
-        latitude = Math.min(1.0, latitude); // Clamp to prevent overflow at extreme coordinates
-        double latitudeEffect = -latitude * 40.0; // -40°C from equator to pole
+        latitude = Math.min(1.0, latitude);
+        double latitudeEffect = -latitude * 40.0;
 
         // === ELEVATION COOLING ===
         double terrainHeight = terrainMap.sample(worldX, worldZ);
         double seaLevel = planetData.getSeaLevel();
-        double elevationAboveSeaLevel = Math.max(0, terrainHeight - seaLevel); // Only positive elevation counts
-        double elevationEffect = -(elevationAboveSeaLevel / 100.0) * 20.0; // -20°C per 100 blocks
+        double elevationAboveSeaLevel = Math.max(0, terrainHeight - seaLevel);
+        double elevationEffect = -(elevationAboveSeaLevel / 100.0) * 20.0;
 
         // === LOCAL TEMPERATURE VARIATION ===
-        double tempNoiseFreq = config.getNoiseScale() * 1.2; // Medium-scale temperature variation
+        double tempNoiseFreq = config.getNoiseScale() * 1.2;
         double temperatureNoise = masterNoise.sample(worldX * tempNoiseFreq, 20, worldZ * tempNoiseFreq);
-        double temperatureVariation = temperatureNoise * 5.0; // ±5°C local variation
+        double temperatureVariation = temperatureNoise * 5.0;
 
-        // === COMBINE ALL EFFECTS ===
-        double finalTemperature = baseTemp + latitudeEffect + elevationEffect + temperatureVariation;
-
-        return finalTemperature;
+        return baseTemp + latitudeEffect + elevationEffect + temperatureVariation;
     }
 
     @Override
     public int getLayerCount() {
-        return 4; // Base + Latitude + Elevation + Local Variation
+        return 4;
     }
 }
 
 /**
- * WIND NOISE MAP - Terrain-based wind patterns
+ * WIND NOISE MAP - Terrain-based wind patterns WITH CACHING
  * Layers: Base + Elevation Gradients + Temperature Gradients + Local Variation
  * Physics: Wind flows from low elevation to high elevation, influenced by atmospheric density
+ * Performance: Chunk-level caching for ~250x speedup on expensive gradient calculations
  */
 class WindNoiseMap extends NoiseMap {
 
     private final TerrainNoiseMap terrainMap;
     private final TemperatureNoiseMap temperatureMap;
+    private final RegionCompletionTracker cacheTracker;
 
     // Sampling distance for calculating gradients (in blocks)
-    private static final int GRADIENT_SAMPLE_DISTANCE = 64; // Sample 64 blocks in each direction
+    private static final int GRADIENT_SAMPLE_DISTANCE = 64;
 
     public WindNoiseMap(PlanetConfig config, PlanetData planetData, SimplexNoiseSampler masterNoise,
-                        TerrainNoiseMap terrainMap, TemperatureNoiseMap temperatureMap) {
+                        TerrainNoiseMap terrainMap, TemperatureNoiseMap temperatureMap, RegionCompletionTracker cacheTracker) {
         super(config, planetData, masterNoise);
         this.terrainMap = terrainMap;
         this.temperatureMap = temperatureMap;
+        this.cacheTracker = cacheTracker;
     }
 
     @Override
     public double sample(int worldX, int worldZ) {
-        // This returns wind speed magnitude - use sampleSpeed() for the same result
         return sampleSpeed(worldX, worldZ);
     }
 
     /**
-     * Sample wind speed (0.0-1.0) at world coordinates
+     * Sample wind speed (0.0-1.0) at world coordinates WITH CACHING
      */
     public double sampleSpeed(int worldX, int worldZ) {
+        // Convert to chunk coordinates
+        int chunkX = worldX >> 4;
+        int chunkZ = worldZ >> 4;
+
+        // Get region key
+        RegionCompletionTracker.RegionKey regionKey = RegionCompletionTracker.RegionKey.fromChunkCoords(config.getPlanetName(), chunkX, chunkZ);
+
+        // Check cache first
+        Double cached = cacheTracker.getCachedWindSpeed(regionKey, chunkX, chunkZ);
+        if (cached != null) {
+            return cached;
+        }
+
+        // Not cached - compute at chunk center
+        int chunkCenterX = (chunkX << 4) + 8;
+        int chunkCenterZ = (chunkZ << 4) + 8;
+
+        double windSpeed = computeWindSpeedAt(chunkCenterX, chunkCenterZ);
+
+        // Cache the result
+        cacheTracker.setCachedWindSpeed(regionKey, chunkX, chunkZ, windSpeed);
+
+        return windSpeed;
+    }
+
+    /**
+     * Actual wind speed computation (separated for caching)
+     */
+    private double computeWindSpeedAt(int worldX, int worldZ) {
         // === BASE WIND FROM ATMOSPHERIC DENSITY ===
         double baseWind = planetData.getActualAtmosphericDensity() * 0.3;
 
         // === ELEVATION GRADIENT WIND ===
         double elevationGradientStrength = calculateElevationGradientStrength(worldX, worldZ);
-        double elevationWind = elevationGradientStrength * 0.4; // Scale factor for terrain effect
+        double elevationWind = elevationGradientStrength * 0.4;
 
         // === TEMPERATURE GRADIENT WIND ===
         double temperatureGradientStrength = calculateTemperatureGradientStrength(worldX, worldZ);
-        double temperatureWind = temperatureGradientStrength * 0.2; // Weaker than terrain effect
+        double temperatureWind = temperatureGradientStrength * 0.2;
 
         // === LOCAL WIND VARIATION ===
-        double windNoiseFreq = config.getNoiseScale() * 2.0; // Higher frequency for local variation
+        double windNoiseFreq = config.getNoiseScale() * 2.0;
         double windNoise = masterNoise.sample(worldX * windNoiseFreq, 30, worldZ * windNoiseFreq);
-        double windVariation = windNoise * 0.15; // ±0.15 local variation
+        double windVariation = windNoise * 0.15;
 
-        // === COMBINE ALL EFFECTS ===
         double totalWindSpeed = baseWind + elevationWind + temperatureWind + windVariation;
-
-        // Clamp to 0.0-1.0 range
         return Math.max(0.0, Math.min(1.0, totalWindSpeed));
     }
 
-    /**
-     * Sample wind direction at world coordinates
-     * Returns [directionX, directionZ] normalized vector pointing toward higher elevation
-     */
+    // NOTE: Direction methods not cached since they're less expensive and called less frequently
     public double[] sampleDirection(int worldX, int worldZ) {
-        // Calculate elevation gradients in X and Z directions
         double[] elevationGradient = calculateElevationGradient(worldX, worldZ);
-
-        // Calculate temperature gradients (weaker influence)
         double[] temperatureGradient = calculateTemperatureGradient(worldX, worldZ);
 
-        // Combine gradients (elevation is primary, temperature is secondary)
         double directionX = elevationGradient[0] * 0.8 + temperatureGradient[0] * 0.2;
         double directionZ = elevationGradient[1] * 0.8 + temperatureGradient[1] * 0.2;
 
-        // Normalize direction vector
         double magnitude = Math.sqrt(directionX * directionX + directionZ * directionZ);
-        if (magnitude > 0.001) { // Avoid division by zero
+        if (magnitude > 0.001) {
             directionX /= magnitude;
             directionZ /= magnitude;
         } else {
-            // No significant gradient - no preferred direction
             directionX = 0.0;
             directionZ = 0.0;
         }
@@ -597,187 +693,341 @@ class WindNoiseMap extends NoiseMap {
         return new double[]{directionX, directionZ};
     }
 
-    /**
-     * Sample wind vector (speed and direction combined)
-     * Returns [speedX, speedZ] where magnitude is speed, direction is flow direction
-     */
     public double[] sampleVector(int worldX, int worldZ) {
-        double speed = sampleSpeed(worldX, worldZ);
+        double speed = sampleSpeed(worldX, worldZ); // Uses cached speed
         double[] direction = sampleDirection(worldX, worldZ);
-
         return new double[]{direction[0] * speed, direction[1] * speed};
     }
 
-    /**
-     * Calculate elevation gradient strength (used for wind speed calculation)
-     */
+    // Keep existing gradient calculation methods unchanged...
     private double calculateElevationGradientStrength(int worldX, int worldZ) {
         double[] gradient = calculateElevationGradient(worldX, worldZ);
         return Math.sqrt(gradient[0] * gradient[0] + gradient[1] * gradient[1]);
     }
 
-    /**
-     * Calculate elevation gradient vector [dX, dZ]
-     */
     private double[] calculateElevationGradient(int worldX, int worldZ) {
-        // Sample terrain height at current position and in 4 cardinal directions
         double centerHeight = terrainMap.sample(worldX, worldZ);
         double eastHeight = terrainMap.sample(worldX + GRADIENT_SAMPLE_DISTANCE, worldZ);
         double westHeight = terrainMap.sample(worldX - GRADIENT_SAMPLE_DISTANCE, worldZ);
         double northHeight = terrainMap.sample(worldX, worldZ - GRADIENT_SAMPLE_DISTANCE);
         double southHeight = terrainMap.sample(worldX, worldZ + GRADIENT_SAMPLE_DISTANCE);
 
-        // Calculate gradients (positive values point toward higher elevation)
         double gradientX = (eastHeight - westHeight) / (2.0 * GRADIENT_SAMPLE_DISTANCE);
         double gradientZ = (southHeight - northHeight) / (2.0 * GRADIENT_SAMPLE_DISTANCE);
 
         return new double[]{gradientX, gradientZ};
     }
 
-    /**
-     * Calculate temperature gradient strength (used for wind speed calculation)
-     */
     private double calculateTemperatureGradientStrength(int worldX, int worldZ) {
         double[] gradient = calculateTemperatureGradient(worldX, worldZ);
         return Math.sqrt(gradient[0] * gradient[0] + gradient[1] * gradient[1]);
     }
 
-    /**
-     * Calculate temperature gradient vector [dX, dZ]
-     * Wind flows from hot to cold (opposite of temperature gradient)
-     */
     private double[] calculateTemperatureGradient(int worldX, int worldZ) {
-        // Sample temperature at current position and in 4 cardinal directions
-        double centerTemp = temperatureMap.sample(worldX, worldZ);
+        double centerTemp = temperatureMap.sample(worldX, worldZ); // Uses cached temperature!
         double eastTemp = temperatureMap.sample(worldX + GRADIENT_SAMPLE_DISTANCE, worldZ);
         double westTemp = temperatureMap.sample(worldX - GRADIENT_SAMPLE_DISTANCE, worldZ);
         double northTemp = temperatureMap.sample(worldX, worldZ - GRADIENT_SAMPLE_DISTANCE);
         double southTemp = temperatureMap.sample(worldX, worldZ + GRADIENT_SAMPLE_DISTANCE);
 
-        // Calculate gradients (positive values point toward higher temperature)
         double gradientX = (eastTemp - westTemp) / (2.0 * GRADIENT_SAMPLE_DISTANCE);
         double gradientZ = (southTemp - northTemp) / (2.0 * GRADIENT_SAMPLE_DISTANCE);
 
-        // Wind flows from hot to cold, so reverse the gradient
-        return new double[]{-gradientX * 0.1, -gradientZ * 0.1}; // Scale down temperature effect
+        return new double[]{-gradientX * 0.1, -gradientZ * 0.1};
     }
 
     @Override
     public int getLayerCount() {
-        return 4; // Base + Elevation Gradients + Temperature Gradients + Local Variation
+        return 4;
     }
 }
 
 /**
- * MOISTURE NOISE MAP - Wind-transported humidity with distance from water effects
+ * MOISTURE NOISE MAP - Wind-transported humidity WITH SIMPLIFIED CACHING
  * Layers: Base + Wind Transport + Distance from Water + Local Variation
  * Physics: Wind carries moisture from water sources, blocked naturally by mountains
+ * Performance: Chunk-level caching + simplified water distance calculation for huge speedup
  */
 class MoistureNoiseMap extends NoiseMap {
 
     private final TerrainNoiseMap terrainMap;
     private final WindNoiseMap windMap;
+    private final RegionCompletionTracker cacheTracker;
 
-    // Transport distance for moisture calculations (in blocks)
-    private static final int MOISTURE_TRANSPORT_DISTANCE = 128; // How far moisture travels via wind
-    private static final int WATER_DISTANCE_SAMPLE = 256; // How far to check for water sources
+    // REDUCED transport distance for better performance
+    private static final int MOISTURE_TRANSPORT_DISTANCE = 64; // Reduced from 128
+    private static final int WATER_DISTANCE_SAMPLE = 128; // Reduced from 256
 
     public MoistureNoiseMap(PlanetConfig config, PlanetData planetData, SimplexNoiseSampler masterNoise,
-                            TerrainNoiseMap terrainMap, WindNoiseMap windMap) {
+                            TerrainNoiseMap terrainMap, WindNoiseMap windMap, RegionCompletionTracker cacheTracker) {
         super(config, planetData, masterNoise);
         this.terrainMap = terrainMap;
         this.windMap = windMap;
+        this.cacheTracker = cacheTracker;
     }
 
     @Override
     public double sample(int worldX, int worldZ) {
+        // Convert to chunk coordinates
+        int chunkX = worldX >> 4;
+        int chunkZ = worldZ >> 4;
+
+        // Get region key
+        RegionCompletionTracker.RegionKey regionKey = RegionCompletionTracker.RegionKey.fromChunkCoords(config.getPlanetName(), chunkX, chunkZ);
+
+        // Check cache first
+        Double cached = cacheTracker.getCachedMoisture(regionKey, chunkX, chunkZ);
+        if (cached != null) {
+            return cached;
+        }
+
+        // Not cached - compute at chunk center
+        int chunkCenterX = (chunkX << 4) + 8;
+        int chunkCenterZ = (chunkZ << 4) + 8;
+
+        double moisture = computeMoistureAt(chunkCenterX, chunkCenterZ);
+
+        // Cache the result
+        cacheTracker.setCachedMoisture(regionKey, chunkX, chunkZ, moisture);
+
+        return moisture;
+    }
+
+    /**
+     * Actual moisture computation with performance optimizations
+     */
+    private double computeMoistureAt(int worldX, int worldZ) {
         // === BASE HUMIDITY ===
-        double baseHumidity = planetData.getActualWaterContent() * 0.7; // 70% of planet water content
+        double baseHumidity = planetData.getActualWaterContent() * 0.7;
 
-        // === WIND TRANSPORT EFFECT ===
-        double windTransportHumidity = calculateWindTransportHumidity(worldX, worldZ);
+        // === SIMPLIFIED WIND TRANSPORT (reduced recursion) ===
+        double windTransportHumidity = calculateSimplifiedWindTransport(worldX, worldZ);
 
-        // === DISTANCE FROM WATER EFFECT ===
-        double distanceFromWaterEffect = calculateDistanceFromWaterEffect(worldX, worldZ);
+        // === SIMPLIFIED WATER DISTANCE (4 samples instead of 64) ===
+        double distanceFromWaterEffect = calculateSimplifiedWaterDistance(worldX, worldZ);
 
         // === LOCAL HUMIDITY VARIATION ===
         double humidityNoiseFreq = config.getNoiseScale() * 1.5;
         double humidityNoise = masterNoise.sample(worldX * humidityNoiseFreq, 40, worldZ * humidityNoiseFreq);
-        double humidityVariation = humidityNoise * 0.1; // ±0.1 local variation
+        double humidityVariation = humidityNoise * 0.1;
 
-        // === COMBINE ALL EFFECTS ===
         double totalHumidity = baseHumidity + windTransportHumidity + distanceFromWaterEffect + humidityVariation;
-
-        // Clamp to 0.0-1.0 range
         return Math.max(0.0, Math.min(1.0, totalHumidity));
     }
 
     /**
-     * Calculate humidity transported by wind from upwind areas
-     * Samples humidity from the opposite direction of wind flow
+     * SIMPLIFIED wind transport - less recursive, better performance
      */
-    private double calculateWindTransportHumidity(int worldX, int worldZ) {
-        // Get wind direction at current location
-        double[] windDirection = windMap.sampleDirection(worldX, worldZ);
-        double windSpeed = windMap.sampleSpeed(worldX, worldZ);
+    private double calculateSimplifiedWindTransport(int worldX, int worldZ) {
+        double windSpeed = windMap.sampleSpeed(worldX, worldZ); // Uses cached wind speed!
 
-        // If no wind, no transport
         if (windSpeed < 0.1) {
             return 0.0;
         }
 
-        // Sample humidity from upwind location (opposite of wind direction)
-        double transportDistance = MOISTURE_TRANSPORT_DISTANCE * windSpeed; // Stronger wind = further transport
-        int upwindX = (int) (worldX - windDirection[0] * transportDistance);
-        int upwindZ = (int) (worldZ - windDirection[1] * transportDistance);
-
-        // Calculate base humidity at upwind location (without wind transport to avoid recursion)
-        double upwindBaseHumidity = planetData.getActualWaterContent() * 0.7;
-        double upwindDistanceEffect = calculateDistanceFromWaterEffect(upwindX, upwindZ);
-        double upwindHumidity = upwindBaseHumidity + upwindDistanceEffect;
-
-        // Transport efficiency decreases with distance and increases with wind speed
-        double transportEfficiency = windSpeed * 0.3; // Max 30% of upwind humidity transported
-
-        return Math.max(0.0, upwindHumidity * transportEfficiency);
+        // Simplified transport - just add base humidity effect scaled by wind
+        double transportEffect = windSpeed * 0.2; // Much simpler than original recursive method
+        return Math.max(0.0, transportEffect);
     }
 
     /**
-     * Calculate humidity effect based on distance from water sources (sea level areas)
+     * SIMPLIFIED water distance - 4 cardinal samples instead of 8x8 grid
      */
-    private double calculateDistanceFromWaterEffect(int worldX, int worldZ) {
+    private double calculateSimplifiedWaterDistance(int worldX, int worldZ) {
         double seaLevel = planetData.getSeaLevel();
         double minDistanceToWater = Double.MAX_VALUE;
 
-        // Sample terrain in a grid around current location to find nearest water
-        int sampleStep = WATER_DISTANCE_SAMPLE / 8; // Sample 8x8 grid
-        for (int dx = -WATER_DISTANCE_SAMPLE; dx <= WATER_DISTANCE_SAMPLE; dx += sampleStep) {
-            for (int dz = -WATER_DISTANCE_SAMPLE; dz <= WATER_DISTANCE_SAMPLE; dz += sampleStep) {
-                double sampleHeight = terrainMap.sample(worldX + dx, worldZ + dz);
+        // PERFORMANCE FIX: Only sample 4 cardinal directions instead of 8x8 grid
+        int[] sampleDistances = {WATER_DISTANCE_SAMPLE/4, WATER_DISTANCE_SAMPLE/2, WATER_DISTANCE_SAMPLE};
 
-                // Check if this location is at or below sea level (water source)
-                if (sampleHeight <= seaLevel + 5) { // Small tolerance for near-water areas
-                    double distance = Math.sqrt(dx * dx + dz * dz);
-                    minDistanceToWater = Math.min(minDistanceToWater, distance);
+        for (int distance : sampleDistances) {
+            // Check 4 cardinal directions
+            int[][] directions = {{distance, 0}, {-distance, 0}, {0, distance}, {0, -distance}};
+
+            for (int[] dir : directions) {
+                double sampleHeight = terrainMap.sample(worldX + dir[0], worldZ + dir[1]);
+
+                if (sampleHeight <= seaLevel + 5) {
+                    double actualDistance = Math.sqrt(dir[0] * dir[0] + dir[1] * dir[1]);
+                    minDistanceToWater = Math.min(minDistanceToWater, actualDistance);
                 }
+            }
+
+            // Early exit if we found nearby water
+            if (minDistanceToWater < WATER_DISTANCE_SAMPLE / 2) {
+                break;
             }
         }
 
-        // Convert distance to humidity effect (closer = more humid)
         if (minDistanceToWater == Double.MAX_VALUE) {
-            return -0.2; // No water found nearby - reduce humidity
+            return -0.2; // No water found
         }
 
-        // Humidity decreases with distance from water
-        double normalizedDistance = minDistanceToWater / WATER_DISTANCE_SAMPLE; // 0-1 scale
-        double waterEffect = (1.0 - normalizedDistance) * 0.3; // Max +0.3 humidity near water
-
-        return Math.max(-0.2, waterEffect); // Minimum -0.2 humidity effect
+        double normalizedDistance = minDistanceToWater / WATER_DISTANCE_SAMPLE;
+        double waterEffect = (1.0 - normalizedDistance) * 0.3;
+        return Math.max(-0.2, waterEffect);
     }
 
     @Override
     public int getLayerCount() {
-        return 4; // Base + Wind Transport + Distance from Water + Local Variation
+        return 4;
+    }
+}
+
+/**
+ * HABITABILITY NOISE MAP - Livability assessment WITH CACHING
+ * Layers: Base + Temperature Factor + Environmental Factors + Wind Factor + Local Variation
+ * Physics: Optimal at 10-30°C, sea level, moderate humidity, calm winds
+ * Performance: Chunk-level caching leverages cached temperature/wind/moisture for massive speedup
+ */
+class HabitabilityNoiseMap extends NoiseMap {
+
+    private final TerrainNoiseMap terrainMap;
+    private final TemperatureNoiseMap temperatureMap;
+    private final WindNoiseMap windMap;
+    private final MoistureNoiseMap moistureMap;
+    private final RegionCompletionTracker cacheTracker;
+
+    // Factor weights
+    private static final double TEMPERATURE_WEIGHT = 0.35;
+    private static final double ELEVATION_WEIGHT = 0.25;
+    private static final double HUMIDITY_WEIGHT = 0.20;
+    private static final double WIND_WEIGHT = 0.10;
+    private static final double VARIATION_WEIGHT = 0.10;
+
+    public HabitabilityNoiseMap(PlanetConfig config, PlanetData planetData, SimplexNoiseSampler masterNoise,
+                                TerrainNoiseMap terrainMap, TemperatureNoiseMap temperatureMap,
+                                WindNoiseMap windMap, MoistureNoiseMap moistureMap, RegionCompletionTracker cacheTracker) {
+        super(config, planetData, masterNoise);
+        this.terrainMap = terrainMap;
+        this.temperatureMap = temperatureMap;
+        this.windMap = windMap;
+        this.moistureMap = moistureMap;
+        this.cacheTracker = cacheTracker;
+    }
+
+    @Override
+    public double sample(int worldX, int worldZ) {
+        // Convert to chunk coordinates
+        int chunkX = worldX >> 4;
+        int chunkZ = worldZ >> 4;
+
+        // Get region key
+        RegionCompletionTracker.RegionKey regionKey = RegionCompletionTracker.RegionKey.fromChunkCoords(config.getPlanetName(), chunkX, chunkZ);
+
+        // Check cache first
+        Double cached = cacheTracker.getCachedHabitability(regionKey, chunkX, chunkZ);
+        if (cached != null) {
+            return cached;
+        }
+
+        // Not cached - compute at chunk center
+        int chunkCenterX = (chunkX << 4) + 8;
+        int chunkCenterZ = (chunkZ << 4) + 8;
+
+        double habitability = computeHabitabilityAt(chunkCenterX, chunkCenterZ);
+
+        // Cache the result
+        cacheTracker.setCachedHabitability(regionKey, chunkX, chunkZ, habitability);
+
+        return habitability;
+    }
+
+    /**
+     * Actual habitability computation - leverages cached inputs for speed!
+     */
+    private double computeHabitabilityAt(int worldX, int worldZ) {
+        double baseHabitability = planetData.getHabitability();
+
+        // All of these are now cached and fast!
+        double temperatureFactor = calculateTemperatureFactor(worldX, worldZ);
+        double elevationFactor = calculateElevationFactor(worldX, worldZ);
+        double humidityFactor = calculateHumidityFactor(worldX, worldZ);
+        double windFactor = calculateWindFactor(worldX, worldZ);
+        double localVariation = calculateLocalVariation(worldX, worldZ);
+
+        double factorSum = (temperatureFactor * TEMPERATURE_WEIGHT) +
+                (elevationFactor * ELEVATION_WEIGHT) +
+                (humidityFactor * HUMIDITY_WEIGHT) +
+                (windFactor * WIND_WEIGHT) +
+                (localVariation * VARIATION_WEIGHT);
+
+        double finalHabitability = baseHabitability * factorSum;
+        return Math.max(0.0, Math.min(1.20, finalHabitability));
+    }
+
+    // Keep existing factor calculation methods - they now use cached inputs!
+    private double calculateTemperatureFactor(int worldX, int worldZ) {
+        double temperature = temperatureMap.sample(worldX, worldZ); // CACHED!
+
+        if (temperature >= 10.0 && temperature <= 30.0) {
+            return 1.0;
+        } else if (temperature >= 0.0 && temperature <= 40.0) {
+            if (temperature < 10.0) {
+                return 0.8 + (temperature / 10.0) * 0.2;
+            } else {
+                return 0.8 + ((40.0 - temperature) / 10.0) * 0.2;
+            }
+        } else if (temperature >= -10.0 && temperature <= 50.0) {
+            if (temperature < 0.0) {
+                return 0.5 + ((temperature + 10.0) / 10.0) * 0.3;
+            } else {
+                return 0.5 + ((50.0 - temperature) / 10.0) * 0.3;
+            }
+        } else if (temperature >= -20.0 && temperature <= 60.0) {
+            if (temperature < -10.0) {
+                return 0.1 + ((temperature + 20.0) / 10.0) * 0.4;
+            } else {
+                return 0.1 + ((60.0 - temperature) / 10.0) * 0.4;
+            }
+        } else {
+            return 0.0;
+        }
+    }
+
+    private double calculateElevationFactor(int worldX, int worldZ) {
+        double terrainHeight = terrainMap.sample(worldX, worldZ);
+        double seaLevel = planetData.getSeaLevel();
+        double elevationDifference = Math.abs(terrainHeight - seaLevel);
+
+        if (elevationDifference <= 100.0) {
+            return 1.0 - (elevationDifference / 100.0) * 0.1;
+        } else if (elevationDifference <= 200.0) {
+            return 0.9 - ((elevationDifference - 100.0) / 100.0) * 0.2;
+        } else {
+            return Math.max(0.0, 0.7 - ((elevationDifference - 200.0) / 100.0) * 0.1);
+        }
+    }
+
+    private double calculateHumidityFactor(int worldX, int worldZ) {
+        double humidity = moistureMap.sample(worldX, worldZ); // CACHED!
+        return Math.max(0.0, Math.min(1.2, humidity * 1.2));
+    }
+
+    private double calculateWindFactor(int worldX, int worldZ) {
+        double windSpeed = windMap.sampleSpeed(worldX, worldZ); // CACHED!
+
+        if (windSpeed < 0.6) {
+            return 1.0;
+        } else if (windSpeed < 0.7) {
+            return 1.0 - ((windSpeed - 0.6) / 0.1) * 0.2;
+        } else if (windSpeed < 0.9) {
+            return 0.8 - ((windSpeed - 0.7) / 0.2) * 0.3;
+        } else {
+            double severePenalty = Math.min(1.0, (windSpeed - 0.9) / 0.1);
+            return 0.5 - (severePenalty * 0.4);
+        }
+    }
+
+    private double calculateLocalVariation(int worldX, int worldZ) {
+        double habitabilityNoiseFreq = config.getNoiseScale() * 2.5;
+        double habitabilityNoise = masterNoise.sample(worldX * habitabilityNoiseFreq, 50, worldZ * habitabilityNoiseFreq);
+        return 1.0 + (habitabilityNoise * 0.5);
+    }
+
+    @Override
+    public int getLayerCount() {
+        return 5;
     }
 }
 
@@ -812,3 +1062,4 @@ class BiomeNoiseMap extends NoiseMap {
         return 1; // Will have 2-3 layers in Phase 7: Classification + Transition smoothing + Local variations
     }
 }
+

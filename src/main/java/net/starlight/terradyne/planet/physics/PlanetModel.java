@@ -1,7 +1,8 @@
 package net.starlight.terradyne.planet.physics;
 
 import net.starlight.terradyne.Terradyne;
-import net.starlight.terradyne.planet.terrain.PlanetaryNoiseSystem;
+import net.starlight.terradyne.planet.mapping.RegionCompletionTracker;
+import net.starlight.terradyne.planet.mapping.PlanetaryNoiseSystem;
 import net.starlight.terradyne.planet.terrain.TerrainHeightMapper;
 import net.starlight.terradyne.planet.mapping.TectonicVolatilityManager;
 
@@ -22,6 +23,8 @@ public class PlanetModel {
 
     // === PHASE 2: VOLATILITY SYSTEM ===
     private final TectonicVolatilityManager volatilityManager;
+
+    private final RegionCompletionTracker cacheTracker;
 
     // Future system references (to be added in later phases)
     // private final TectonicPlateManager tectonicManager;
@@ -50,19 +53,17 @@ public class PlanetModel {
                     config.getCrustComposition());
         }
 
+        this.cacheTracker = new RegionCompletionTracker();
+
         // === PHASE C: NOISE SYSTEM INITIALIZATION ===
         Terradyne.LOGGER.info("Initializing noise system...");
-        this.noiseSystem = new PlanetaryNoiseSystem(config, planetData);
+        this.noiseSystem = new PlanetaryNoiseSystem(config, planetData, cacheTracker);
         this.heightMapper = new TerrainHeightMapper(this, noiseSystem);
 
         // === PHASE 2: VOLATILITY SYSTEM INITIALIZATION ===
         Terradyne.LOGGER.info("Initializing tectonic volatility system...");
         this.volatilityManager = new TectonicVolatilityManager(config, planetData, noiseSystem.getMasterNoise());
 
-        // === FUTURE PHASES ===
-        // Phase 1: this.tectonicManager = new TectonicPlateManager(config, planetData);
-        // Phase 5: this.temperatureCalculator = new TemperatureCalculator(config, planetData);
-        // Phase 5: this.moistureCalculator = new MoistureCalculator(config, planetData);
 
         logPlanetSummary();
     }
@@ -229,6 +230,13 @@ public class PlanetModel {
      */
     public int getChunkVolatility(int chunkX, int chunkZ) {
         return volatilityManager.getChunkVolatility(chunkX, chunkZ);
+    }
+
+    /**
+     * Get cache tracker for noise map performance optimization
+     */
+    public RegionCompletionTracker getCacheTracker() {
+        return cacheTracker;
     }
 
     // === FUTURE SYSTEM ACCESSORS (to be uncommented in later phases) ===
