@@ -3,7 +3,12 @@
 	"package": "net.starlight.terradyne.mixin",
 	"compatibilityLevel": "JAVA_17",
 	"mixins": [],
-	"client": [],
+	"client": [
+		"BiomeColorsMixin",
+		"ClientWorldSkyMixin",
+		"BackgroundRendererMixin",
+		"ClientWorldPropertiesMixin"
+	],
 	"server": [],
 	"injectors": {
 		"defaultRequire": 1

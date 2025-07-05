@@ -6,12 +6,15 @@ import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.minecraft.registry.Registry;
 import net.minecraft.registry.Registries;
 import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.Identifier;
 import net.starlight.terradyne.blocks.ModBlocks;
 import net.starlight.terradyne.commands.CommandRegistry;
 import net.starlight.terradyne.planet.biome.ModBiomes;
 import net.starlight.terradyne.planet.biome.PhysicsBasedBiomeSource;
 import net.starlight.terradyne.planet.features.ModFeatures;
+import net.starlight.terradyne.planet.physics.PlanetModel;
+import net.starlight.terradyne.planet.physics.PlanetModelRegistry;
 import net.starlight.terradyne.planet.terrain.UniversalChunkGenerator;
 import net.starlight.terradyne.planet.dimension.ModDimensionTypes;
 import org.slf4j.Logger;
@@ -158,8 +161,14 @@ public class Terradyne implements ModInitializer {
 				LOGGER.info("Server started - Terradyne is ready for planet generation");
 			});
 
+			// NEW: Populate registry after worlds are loaded
+			ServerLifecycleEvents.SERVER_STARTED.register(server -> {
+				populatePlanetModelRegistry(server);
+			});
+
 			ServerLifecycleEvents.SERVER_STOPPED.register(server -> {
 				Terradyne.server = null;
+				PlanetModelRegistry.clear();
 				LOGGER.info("Server stopped - Terradyne cleaned up");
 			});
 
@@ -167,6 +176,53 @@ public class Terradyne implements ModInitializer {
 		} catch (Exception e) {
 			LOGGER.error("❌ Failed to register server events!", e);
 			throw new RuntimeException("Critical server event registration failure", e);
+		}
+	}
+
+	/**
+	 * Populate PlanetModelRegistry by scanning all loaded dimensions
+	 */
+	private void populatePlanetModelRegistry(net.minecraft.server.MinecraftServer server) {
+		try {
+			LOGGER.info("Populating PlanetModelRegistry from loaded dimensions...");
+			int registered = 0;
+
+			// Iterate through all loaded worlds
+			for (net.minecraft.server.world.ServerWorld world : server.getWorlds()) {
+				var dimensionKey = world.getRegistryKey();
+
+				// Check if this is a Terradyne dimension
+				if (dimensionKey.getValue().getNamespace().equals("terradyne")) {
+					// Get the chunk generator
+					var chunkGenerator = world.getChunkManager().getChunkGenerator();
+
+					if (chunkGenerator instanceof net.starlight.terradyne.planet.terrain.UniversalChunkGenerator universalGenerator) {
+						PlanetModel planetModel = universalGenerator.getPlanetModel();
+
+						if (planetModel != null) {
+							PlanetModelRegistry.register(dimensionKey.getValue(), planetModel);
+							registered++;
+							LOGGER.info("✓ Registered PlanetModel for dimension: {} ({})",
+									dimensionKey.getValue(), planetModel.getConfig().getPlanetName());
+						} else {
+							LOGGER.warn("UniversalChunkGenerator has null PlanetModel for: {}", dimensionKey.getValue());
+						}
+					} else {
+						LOGGER.debug("Dimension {} uses non-Universal chunk generator: {}",
+								dimensionKey.getValue(), chunkGenerator.getClass().getSimpleName());
+					}
+				}
+			}
+
+			LOGGER.info("✅ PlanetModelRegistry populated with {} planet models", registered);
+
+			if (registered == 0) {
+				LOGGER.warn("⚠️  No Terradyne dimensions found during registry population. " +
+						"Colors will be populated when chunks are first generated.");
+			}
+
+		} catch (Exception e) {
+			LOGGER.error("❌ Failed to populate PlanetModelRegistry: {}", e.getMessage(), e);
 		}
 	}
 

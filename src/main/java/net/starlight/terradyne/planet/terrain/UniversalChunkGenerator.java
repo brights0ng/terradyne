@@ -5,6 +5,7 @@ import com.mojang.serialization.codecs.RecordCodecBuilder;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.Blocks;
 import net.minecraft.registry.RegistryKeys;
+import net.minecraft.util.Identifier;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.ChunkPos;
 import net.minecraft.world.ChunkRegion;
@@ -22,6 +23,7 @@ import net.minecraft.world.gen.noise.NoiseConfig;
 
 import net.starlight.terradyne.Terradyne;
 import net.starlight.terradyne.datagen.HardcodedPlanets;
+import net.starlight.terradyne.planet.physics.PlanetModelRegistry;
 import net.starlight.terradyne.planet.biome.PhysicsBasedBiomeSource;
 import net.starlight.terradyne.planet.physics.PlanetConfig;
 import net.starlight.terradyne.planet.physics.PlanetModel;
@@ -371,6 +373,9 @@ public class UniversalChunkGenerator extends ChunkGenerator {
      * NOW SAMPLES CLIMATE ONCE PER CHUNK FOR PERFORMANCE
      */
     private void generateTerrain(Chunk chunk, NoiseConfig noiseConfig) {
+        // Lazy registration on first chunk generation
+        ensurePlanetModelRegistered();
+
         // No more lazy loading - planet model should be loaded from codec
         if (planetModel == null) {
             Terradyne.LOGGER.warn("No planet model available for chunk {} - using fallback terrain", chunk.getPos());
@@ -642,5 +647,21 @@ public class UniversalChunkGenerator extends ChunkGenerator {
      */
     public PlanetModel getPlanetModel() {
         return planetModel;
+    }
+
+    // In UniversalChunkGenerator.java, update this method:
+    private void ensurePlanetModelRegistered() {
+        if (planetModel != null && planetName != null && !planetName.isEmpty()) {
+            try {
+                String dimensionName = planetName.toLowerCase().replace(" ", "_").replace("-", "");
+                Identifier dimensionId = new Identifier("terradyne", dimensionName);
+
+                // Always register (overwrite if exists) to handle world reloads
+                PlanetModelRegistry.register(dimensionId, planetModel);
+
+            } catch (Exception e) {
+                Terradyne.LOGGER.error("Failed to register PlanetModel: {}", e.getMessage(), e);
+            }
+        }
     }
 }
