@@ -15,13 +15,13 @@ import java.util.concurrent.CompletableFuture;
 
 /**
  * Data generation providers for Terradyne features
- * FULLY IMPLEMENTED: Properly generates JSON files for all tree features
+ * FIXED: Complete implementation that actually generates JSON files for all tree features
  */
 public class FeatureDataProviders {
 
     /**
      * Data provider for configured features
-     * Generates configured_feature JSON files for all tree types
+     * FIXED: Now properly generates configured_feature JSON files for all tree types
      */
     public static class ConfiguredFeatureDataProvider extends FabricDynamicRegistryProvider {
 
@@ -31,23 +31,47 @@ public class FeatureDataProviders {
 
         @Override
         protected void configure(RegistryWrapper.WrapperLookup registries, Entries entries) {
-            // Generate configured features for each tree type with default vegetation palette
+            System.out.println("=== GENERATING CONFIGURED TREE FEATURES ===");
+
+            // Use default vegetation palette for base tree configurations
+            // (Individual planets will modify these via their biome component systems)
             VegetationPalette defaultPalette = VegetationPalette.TEMPERATE_DECIDUOUS;
 
-            // Register all tree configured features
-            for (TreeType treeType : TreeType.values()) {
-                try {
-                    var configuredFeatureKey = ModConfiguredFeatures.getConfiguredFeatureKey(treeType);
-                    var configuredFeature = ModConfiguredFeatures.createTreeConfig(treeType, defaultPalette);
+            // Generate configured features for each tree type
+            entries.add(ModConfiguredFeatures.LARGE_DECIDUOUS_TREE,
+                    ModConfiguredFeatures.createTreeConfig(TreeType.LARGE_DECIDUOUS, defaultPalette));
 
-                    entries.add(configuredFeatureKey, configuredFeature);
+            entries.add(ModConfiguredFeatures.LARGE_CONIFEROUS_TREE,
+                    ModConfiguredFeatures.createTreeConfig(TreeType.LARGE_CONIFEROUS, defaultPalette));
 
-                } catch (Exception e) {
-                    System.err.println("Failed to register configured feature for " + treeType + ": " + e.getMessage());
-                }
-            }
+            entries.add(ModConfiguredFeatures.SMALL_DECIDUOUS_TREE,
+                    ModConfiguredFeatures.createTreeConfig(TreeType.SMALL_DECIDUOUS, defaultPalette));
 
-            System.out.println("✅ Registered " + TreeType.values().length + " configured tree features");
+            entries.add(ModConfiguredFeatures.SMALL_CONIFEROUS_TREE,
+                    ModConfiguredFeatures.createTreeConfig(TreeType.SMALL_CONIFEROUS, defaultPalette));
+
+            entries.add(ModConfiguredFeatures.SPARSE_DECIDUOUS_TREE,
+                    ModConfiguredFeatures.createTreeConfig(TreeType.SPARSE_DECIDUOUS, defaultPalette));
+
+            entries.add(ModConfiguredFeatures.SPARSE_CONIFEROUS_TREE,
+                    ModConfiguredFeatures.createTreeConfig(TreeType.SPARSE_CONIFEROUS, defaultPalette));
+
+            entries.add(ModConfiguredFeatures.TROPICAL_CANOPY_TREE,
+                    ModConfiguredFeatures.createTreeConfig(TreeType.TROPICAL_CANOPY, defaultPalette));
+
+            entries.add(ModConfiguredFeatures.MANGROVE_CLUSTER_TREE,
+                    ModConfiguredFeatures.createTreeConfig(TreeType.MANGROVE_CLUSTERS, defaultPalette));
+
+            entries.add(ModConfiguredFeatures.THERMOPHILIC_GROVE_TREE,
+                    ModConfiguredFeatures.createTreeConfig(TreeType.THERMOPHILIC_GROVES, defaultPalette));
+
+            entries.add(ModConfiguredFeatures.CARBONACEOUS_STRUCTURE_TREE,
+                    ModConfiguredFeatures.createTreeConfig(TreeType.CARBONACEOUS_STRUCTURES, defaultPalette));
+
+            entries.add(ModConfiguredFeatures.CRYSTALLINE_GROWTH_TREE,
+                    ModConfiguredFeatures.createTreeConfig(TreeType.CRYSTALLINE_GROWTHS, defaultPalette));
+
+            System.out.println("✅ Generated " + TreeType.values().length + " configured tree features");
         }
 
         @Override
@@ -58,7 +82,7 @@ public class FeatureDataProviders {
 
     /**
      * Data provider for placed features
-     * Generates placed_feature JSON files for all tree types
+     * FIXED: Now properly generates placed_feature JSON files for all tree types
      */
     public static class PlacedFeatureDataProvider extends FabricDynamicRegistryProvider {
 
@@ -68,66 +92,79 @@ public class FeatureDataProviders {
 
         @Override
         protected void configure(RegistryWrapper.WrapperLookup registries, Entries entries) {
+            System.out.println("=== GENERATING PLACED TREE FEATURES ===");
+
             // Get configured feature registry lookup
             var configuredFeatureLookup = registries.getWrapperOrThrow(net.minecraft.registry.RegistryKeys.CONFIGURED_FEATURE);
 
-            // Register all tree placed features
-            for (TreeType treeType : TreeType.values()) {
-                try {
-                    var configuredFeatureKey = ModConfiguredFeatures.getConfiguredFeatureKey(treeType);
-                    var placedFeatureKey = ModPlacedFeatures.getPlacedFeatureKey(treeType);
+            // Generate placed features for each tree type
+            entries.add(ModPlacedFeatures.LARGE_DECIDUOUS_TREE_PLACED,
+                    new PlacedFeature(
+                            configuredFeatureLookup.getOrThrow(ModConfiguredFeatures.LARGE_DECIDUOUS_TREE),
+                            ModPlacedFeatures.createTreePlacement(TreeType.LARGE_DECIDUOUS)
+                    ));
 
-                    // Get the configured feature entry
-                    var configuredFeatureEntry = configuredFeatureLookup.getOrThrow(configuredFeatureKey);
+            entries.add(ModPlacedFeatures.LARGE_CONIFEROUS_TREE_PLACED,
+                    new PlacedFeature(
+                            configuredFeatureLookup.getOrThrow(ModConfiguredFeatures.LARGE_CONIFEROUS_TREE),
+                            ModPlacedFeatures.createTreePlacement(TreeType.LARGE_CONIFEROUS)
+                    ));
 
-                    // Create placement modifiers for this tree type
-                    var placementModifiers = createPlacementModifiers(treeType);
+            entries.add(ModPlacedFeatures.SMALL_DECIDUOUS_TREE_PLACED,
+                    new PlacedFeature(
+                            configuredFeatureLookup.getOrThrow(ModConfiguredFeatures.SMALL_DECIDUOUS_TREE),
+                            ModPlacedFeatures.createTreePlacement(TreeType.SMALL_DECIDUOUS)
+                    ));
 
-                    // Create the placed feature
-                    var placedFeature = new PlacedFeature(configuredFeatureEntry, placementModifiers);
+            entries.add(ModPlacedFeatures.SMALL_CONIFEROUS_TREE_PLACED,
+                    new PlacedFeature(
+                            configuredFeatureLookup.getOrThrow(ModConfiguredFeatures.SMALL_CONIFEROUS_TREE),
+                            ModPlacedFeatures.createTreePlacement(TreeType.SMALL_CONIFEROUS)
+                    ));
 
-                    entries.add(placedFeatureKey, placedFeature);
+            entries.add(ModPlacedFeatures.SPARSE_DECIDUOUS_TREE_PLACED,
+                    new PlacedFeature(
+                            configuredFeatureLookup.getOrThrow(ModConfiguredFeatures.SPARSE_DECIDUOUS_TREE),
+                            ModPlacedFeatures.createTreePlacement(TreeType.SPARSE_DECIDUOUS)
+                    ));
 
-                } catch (Exception e) {
-                    System.err.println("Failed to register placed feature for " + treeType + ": " + e.getMessage());
-                }
-            }
+            entries.add(ModPlacedFeatures.SPARSE_CONIFEROUS_TREE_PLACED,
+                    new PlacedFeature(
+                            configuredFeatureLookup.getOrThrow(ModConfiguredFeatures.SPARSE_CONIFEROUS_TREE),
+                            ModPlacedFeatures.createTreePlacement(TreeType.SPARSE_CONIFEROUS)
+                    ));
 
-            System.out.println("✅ Registered " + TreeType.values().length + " placed tree features");
-        }
+            entries.add(ModPlacedFeatures.TROPICAL_CANOPY_TREE_PLACED,
+                    new PlacedFeature(
+                            configuredFeatureLookup.getOrThrow(ModConfiguredFeatures.TROPICAL_CANOPY_TREE),
+                            ModPlacedFeatures.createTreePlacement(TreeType.TROPICAL_CANOPY)
+                    ));
 
-        /**
-         * Create placement modifiers for tree type
-         */
-        private java.util.List<net.minecraft.world.gen.placementmodifier.PlacementModifier> createPlacementModifiers(TreeType treeType) {
-            // Get base attempt count based on tree type
-            int baseAttempts = getBaseAttempts(treeType);
+            entries.add(ModPlacedFeatures.MANGROVE_CLUSTER_TREE_PLACED,
+                    new PlacedFeature(
+                            configuredFeatureLookup.getOrThrow(ModConfiguredFeatures.MANGROVE_CLUSTER_TREE),
+                            ModPlacedFeatures.createTreePlacement(TreeType.MANGROVE_CLUSTERS)
+                    ));
 
-            return java.util.List.of(
-                    net.minecraft.world.gen.placementmodifier.CountPlacementModifier.of(baseAttempts),
-                    net.minecraft.world.gen.placementmodifier.SquarePlacementModifier.of(),
-                    net.minecraft.world.gen.placementmodifier.SurfaceWaterDepthFilterPlacementModifier.of(
-                            treeType == TreeType.MANGROVE_CLUSTERS ? 3 : 0), // Mangroves can be in shallow water
-                    net.minecraft.world.gen.feature.PlacedFeatures.OCEAN_FLOOR_HEIGHTMAP,
-                    net.minecraft.world.gen.placementmodifier.BiomePlacementModifier.of()
-            );
-        }
+            entries.add(ModPlacedFeatures.THERMOPHILIC_GROVE_TREE_PLACED,
+                    new PlacedFeature(
+                            configuredFeatureLookup.getOrThrow(ModConfiguredFeatures.THERMOPHILIC_GROVE_TREE),
+                            ModPlacedFeatures.createTreePlacement(TreeType.THERMOPHILIC_GROVES)
+                    ));
 
-        /**
-         * Get base attempt count for TreeType
-         */
-        private int getBaseAttempts(TreeType treeType) {
-            return switch (treeType) {
-                case LARGE_DECIDUOUS -> 8;
-                case LARGE_CONIFEROUS -> 6;
-                case SMALL_DECIDUOUS -> 12;
-                case SMALL_CONIFEROUS -> 10;
-                case SPARSE_DECIDUOUS, SPARSE_CONIFEROUS -> 2;
-                case TROPICAL_CANOPY, THERMOPHILIC_GROVES -> 4;
-                case MANGROVE_CLUSTERS -> 6;
-                case CARBONACEOUS_STRUCTURES -> 3;
-                case CRYSTALLINE_GROWTHS -> 2;
-            };
+            entries.add(ModPlacedFeatures.CARBONACEOUS_STRUCTURE_TREE_PLACED,
+                    new PlacedFeature(
+                            configuredFeatureLookup.getOrThrow(ModConfiguredFeatures.CARBONACEOUS_STRUCTURE_TREE),
+                            ModPlacedFeatures.createTreePlacement(TreeType.CARBONACEOUS_STRUCTURES)
+                    ));
+
+            entries.add(ModPlacedFeatures.CRYSTALLINE_GROWTH_TREE_PLACED,
+                    new PlacedFeature(
+                            configuredFeatureLookup.getOrThrow(ModConfiguredFeatures.CRYSTALLINE_GROWTH_TREE),
+                            ModPlacedFeatures.createTreePlacement(TreeType.CRYSTALLINE_GROWTHS)
+                    ));
+
+            System.out.println("✅ Generated " + TreeType.values().length + " placed tree features");
         }
 
         @Override
@@ -138,6 +175,7 @@ public class FeatureDataProviders {
 
     /**
      * Validation provider to check our feature system
+     * This helps debug what's being generated
      */
     public static class FeatureValidationProvider extends FabricDynamicRegistryProvider {
 

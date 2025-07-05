@@ -1,32 +1,34 @@
 package net.starlight.terradyne.planet.biology;
 
 import net.minecraft.registry.RegistryKey;
+import net.minecraft.registry.RegistryKeys;
+import net.minecraft.registry.RegistryWrapper;
 import net.minecraft.world.biome.Biome;
 import net.minecraft.world.biome.GenerationSettings;
-import net.minecraft.world.gen.feature.ConfiguredFeature;
-import net.minecraft.world.gen.feature.Feature;
-import net.minecraft.world.gen.feature.TreeFeatureConfig;
+import net.minecraft.world.gen.GenerationStep;
+import net.minecraft.world.gen.feature.PlacedFeature;
 import net.starlight.terradyne.Terradyne;
 import net.starlight.terradyne.planet.biology.BiomeFeatureComponents.*;
-import net.starlight.terradyne.planet.features.RuntimeTreeFeatures;
+import net.starlight.terradyne.planet.features.ModPlacedFeatures;
 import net.starlight.terradyne.planet.physics.CrustComposition;
 
 /**
  * Converts BiomeFeatureComponents into Minecraft GenerationSettings
- * UPDATED: Full 1.20.1 integration with proper registry lookups
+ * FIXED: Now actually adds features to generation settings using data-generated placed features
  */
 public class BiomeFeatureGenerator {
 
     /**
      * Create GenerationSettings from BiomeFeatureComponents and planet conditions
-     * This is where our component system becomes actual Minecraft features
+     * FIXED: Now accepts registries parameter to access placed features
      */
     public static GenerationSettings createGenerationSettings(
             RegistryKey<Biome> biomeKey,
             CrustComposition crustComposition,
             double temperature,
             double humidity,
-            double habitability) {
+            double habitability,
+            RegistryWrapper.WrapperLookup registries) {
 
         GenerationSettings.Builder builder = new GenerationSettings.Builder();
 
@@ -45,7 +47,7 @@ public class BiomeFeatureGenerator {
 
         // Add tree features if vegetation is possible
         if (palette.hasVegetation() && components.getLargeVegetation() != null) {
-            addTreeFeatures(builder, components.getLargeVegetation(), palette, temperature, humidity, habitability);
+            addTreeFeatures(builder, components.getLargeVegetation(), palette, temperature, humidity, habitability, registries);
         }
 
         // TODO: Add other component types (bushes, crops, terrain features, ground cover)
@@ -53,15 +55,16 @@ public class BiomeFeatureGenerator {
 
         Terradyne.LOGGER.debug("Generated features for biome {}: trees={}, palette={}",
                 biomeKey.getValue().getPath(),
-                components.getLargeVegetation() != null ? components.getLargeVegetation().getDisplayName() : "none",
+                components.getLargeVegetation() != null ?
+                        components.getLargeVegetation().getDisplayName() : "none",
                 palette.getDisplayName());
 
         return builder.build();
     }
 
     /**
-     * Add tree features to generation settings
-     * UPDATED: Uses RuntimeTreeFeatures for 1.20.1 compatibility
+     * FIXED: Add tree features to generation settings using data-generated placed features
+     * Now actually adds features to the builder instead of just calculating them!
      */
     private static void addTreeFeatures(
             GenerationSettings.Builder builder,
@@ -69,7 +72,8 @@ public class BiomeFeatureGenerator {
             VegetationPalette palette,
             double temperature,
             double humidity,
-            double habitability) {
+            double habitability,
+            RegistryWrapper.WrapperLookup registries) {
 
         try {
             // Calculate tree density based on environmental factors
@@ -82,33 +86,54 @@ public class BiomeFeatureGenerator {
                 return;
             }
 
-            // Get the tree feature configuration for this type and palette
-            var treeFeature = RuntimeTreeFeatures.getTreeFeature(treeType, palette);
+            // Get the placed feature registry entry for this tree type
+            RegistryKey<PlacedFeature> placedFeatureKey = getPlacedFeatureKey(treeType);
 
-            // Calculate placement attempts based on density
-            int placementAttempts = calculatePlacementAttempts(treeType, density);
+            if (placedFeatureKey == null) {
+                Terradyne.LOGGER.warn("No placed feature key found for tree type: {}", treeType.getDisplayName());
+                return;
+            }
 
-            // Create a simple runtime placed feature
-            var placedFeature = createRuntimePlacedFeature(treeFeature, placementAttempts);
+            // Get the placed feature registry
+            var placedFeatureRegistry = registries.getWrapperOrThrow(RegistryKeys.PLACED_FEATURE);
 
-            // Add to vegetation generation step
-            // Note: This is a simplified approach for 1.20.1 compatibility
-            // In a full implementation, this would use proper registry entries
+            // Get the placed feature entry
+            var placedFeatureEntry = placedFeatureRegistry.getOrThrow(placedFeatureKey);
 
-            Terradyne.LOGGER.debug("Adding tree feature: {} (density: {:.2f}, attempts: {}) for palette: {}",
-                    treeType.getDisplayName(), density, placementAttempts, palette.getDisplayName());
+            // FINALLY! Actually add the feature to the generation settings
+            builder.feature(GenerationStep.Feature.VEGETAL_DECORATION, placedFeatureEntry);
 
-            // TODO: Actually add the feature to the builder
-            // This requires proper registry integration which is complex in 1.20.1
-            // For now, we're setting up the infrastructure
+            Terradyne.LOGGER.info("✅ Added tree feature: {} (density: {:.2f}) for palette: {} to biome generation",
+                    treeType.getDisplayName(), density, palette.getDisplayName());
 
         } catch (Exception e) {
-            Terradyne.LOGGER.error("Failed to add tree features for {}: {}", treeType.getDisplayName(), e.getMessage());
+            Terradyne.LOGGER.error("❌ Failed to add tree features for {}: {}", treeType.getDisplayName(), e.getMessage());
         }
     }
 
     /**
+     * Map TreeType to corresponding placed feature registry key
+     * FIXED: Now returns actual placed feature keys from ModPlacedFeatures
+     */
+    private static RegistryKey<PlacedFeature> getPlacedFeatureKey(TreeType treeType) {
+        return switch (treeType) {
+            case LARGE_DECIDUOUS -> ModPlacedFeatures.LARGE_DECIDUOUS_TREE_PLACED;
+            case LARGE_CONIFEROUS -> ModPlacedFeatures.LARGE_CONIFEROUS_TREE_PLACED;
+            case SMALL_DECIDUOUS -> ModPlacedFeatures.SMALL_DECIDUOUS_TREE_PLACED;
+            case SMALL_CONIFEROUS -> ModPlacedFeatures.SMALL_CONIFEROUS_TREE_PLACED;
+            case SPARSE_DECIDUOUS -> ModPlacedFeatures.SPARSE_DECIDUOUS_TREE_PLACED;
+            case SPARSE_CONIFEROUS -> ModPlacedFeatures.SPARSE_CONIFEROUS_TREE_PLACED;
+            case TROPICAL_CANOPY -> ModPlacedFeatures.TROPICAL_CANOPY_TREE_PLACED;
+            case MANGROVE_CLUSTERS -> ModPlacedFeatures.MANGROVE_CLUSTER_TREE_PLACED;
+            case THERMOPHILIC_GROVES -> ModPlacedFeatures.THERMOPHILIC_GROVE_TREE_PLACED;
+            case CARBONACEOUS_STRUCTURES -> ModPlacedFeatures.CARBONACEOUS_STRUCTURE_TREE_PLACED;
+            case CRYSTALLINE_GROWTHS -> ModPlacedFeatures.CRYSTALLINE_GROWTH_TREE_PLACED;
+        };
+    }
+
+    /**
      * Calculate placement attempts based on tree type and density
+     * (This is now mainly for informational purposes since placement is handled by placed features)
      */
     private static int calculatePlacementAttempts(TreeType treeType, double density) {
         int baseAttempts = switch (treeType) {
@@ -124,15 +149,6 @@ public class BiomeFeatureGenerator {
         };
 
         return Math.max(1, (int) Math.round(baseAttempts * density));
-    }
-
-    /**
-     * Create a runtime placed feature (simplified for 1.20.1)
-     */
-    private static Object createRuntimePlacedFeature(ConfiguredFeature<TreeFeatureConfig, ? extends Feature<TreeFeatureConfig>> treeFeature, int attempts) {
-        // This is a placeholder for the actual placed feature creation
-        // In a full implementation, this would create proper PlacedFeature instances
-        return null;
     }
 
     /**
@@ -205,16 +221,33 @@ public class BiomeFeatureGenerator {
 
     /**
      * Create generation settings with planet-aware feature selection
-     * UPDATED: Uses planet conditions to determine appropriate features
+     * FIXED: Now accepts registries parameter
      */
     public static GenerationSettings createPlanetAwareGenerationSettings(
             RegistryKey<Biome> biomeKey,
             CrustComposition crustComposition,
             double averageTemperature,
             double averageHumidity,
-            double planetHabitability) {
+            double planetHabitability,
+            RegistryWrapper.WrapperLookup registries) {
 
-        return createGenerationSettings(biomeKey, crustComposition, averageTemperature, averageHumidity, planetHabitability);
+        return createGenerationSettings(biomeKey, crustComposition, averageTemperature, averageHumidity, planetHabitability, registries);
+    }
+
+    /**
+     * Overloaded method for backwards compatibility during transition
+     * This version falls back to minimal generation since it can't access registries
+     */
+    public static GenerationSettings createGenerationSettings(
+            RegistryKey<Biome> biomeKey,
+            CrustComposition crustComposition,
+            double temperature,
+            double humidity,
+            double habitability) {
+
+        Terradyne.LOGGER.warn("BiomeFeatureGenerator called without registries - falling back to minimal generation for biome: {}",
+                biomeKey.getValue());
+        return createMinimalGeneration();
     }
 
     /**
@@ -226,7 +259,3 @@ public class BiomeFeatureGenerator {
         return builder.build();
     }
 }
-
-
-
-

@@ -26,7 +26,7 @@ public class CommandRegistry {
     /**
      * Register all Terradyne commands
      */
-    public static void registerCommands(CommandDispatcher<ServerCommandSource> dispatcher, CommandRegistryAccess registryAccess) {
+    public static void init(CommandDispatcher<ServerCommandSource> dispatcher) {
         dispatcher.register(CommandManager.literal("terradyne")
                 .then(CommandManager.literal("list")
                         .executes(CommandRegistry::listPlanetsCommand)

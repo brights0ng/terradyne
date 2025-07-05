@@ -9,10 +9,12 @@ import net.starlight.terradyne.datagen.DimensionTypeDataProvider;
 import net.starlight.terradyne.datagen.FeatureDataProviders;
 import net.starlight.terradyne.datagen.HardcodedPlanets;
 import net.starlight.terradyne.datagen.PlanetDimensionDataProvider;
+import net.starlight.terradyne.planet.features.ModConfiguredFeatures;
+import net.starlight.terradyne.planet.features.ModPlacedFeatures;
 
 /**
  * Main data generator entry point for Terradyne mod
- * FULLY IMPLEMENTED: Includes complete feature generation for tree system
+ * FIXED: Complete implementation with proper registry bootstrapping
  */
 public class TerradyneDataGenerator implements DataGeneratorEntrypoint {
 
@@ -78,19 +80,24 @@ public class TerradyneDataGenerator implements DataGeneratorEntrypoint {
 			Terradyne.LOGGER.debug("Dimension type registry builder initialized");
 		});
 
-		// Register configured features for data generation
+		// FIXED: Register configured features for data generation
 		registryBuilder.addRegistry(RegistryKeys.CONFIGURED_FEATURE, bootstrap -> {
-			// Configured feature registration happens in ConfiguredFeatureDataProvider
-			Terradyne.LOGGER.debug("Configured feature registry builder initialized");
+			// This is where the actual configured feature registration happens
+			ModConfiguredFeatures.bootstrap(bootstrap);
+			Terradyne.LOGGER.debug("Configured feature registry builder initialized with tree features");
 		});
 
-		// Register placed features for data generation
+		// FIXED: Register placed features for data generation
 		registryBuilder.addRegistry(RegistryKeys.PLACED_FEATURE, bootstrap -> {
-			// Placed feature registration happens in PlacedFeatureDataProvider
-			Terradyne.LOGGER.debug("Placed feature registry builder initialized");
+			// This is where the actual placed feature registration happens
+			ModPlacedFeatures.bootstrap(bootstrap);
+			Terradyne.LOGGER.debug("Placed feature registry builder initialized with tree placement rules");
 		});
 
 		Terradyne.LOGGER.info("✅ Dynamic registry builders initialized");
 		Terradyne.LOGGER.info("Registry types: BIOME, DIMENSION_TYPE, CONFIGURED_FEATURE, PLACED_FEATURE");
+		Terradyne.LOGGER.info("🌳 Tree features: {} configured + {} placed features will be generated",
+				net.starlight.terradyne.planet.biology.BiomeFeatureComponents.TreeType.values().length,
+				net.starlight.terradyne.planet.biology.BiomeFeatureComponents.TreeType.values().length);
 	}
 }
