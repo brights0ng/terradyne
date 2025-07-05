@@ -11,6 +11,7 @@ import net.starlight.terradyne.blocks.ModBlocks;
 import net.starlight.terradyne.commands.CommandRegistry;
 import net.starlight.terradyne.planet.biome.ModBiomes;
 import net.starlight.terradyne.planet.biome.PhysicsBasedBiomeSource;
+import net.starlight.terradyne.planet.features.ModFeatures;
 import net.starlight.terradyne.planet.terrain.UniversalChunkGenerator;
 import net.starlight.terradyne.planet.dimension.ModDimensionTypes;
 import org.slf4j.Logger;
@@ -32,6 +33,7 @@ public class Terradyne implements ModInitializer {
 
 		// Initialize core systems
 		registerBlocks();
+		registerFeatures();
 		registerChunkGenerators();
 		registerBiomeSources();
 		initializeTerrainSystem();
@@ -154,6 +156,10 @@ public class Terradyne implements ModInitializer {
 
 	private void registerBlocks() {
 		ModBlocks.initialize();
+	}
+
+	private void registerFeatures() {
+		ModFeatures.initialize();
 	}
 
 	private void registerBiomeSources() {

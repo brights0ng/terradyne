@@ -52,6 +52,14 @@ public class CommandRegistry {
                         .then(CommandManager.literal("dimensions")
                                 .executes(CommandRegistry::debugDimensionsCommand)
                         )
+                        .then(CommandManager.literal("components")
+                                .executes(CommandRegistry::debugComponentsCommand)
+                        )
+                        .then(CommandManager.literal("biome")
+                                .then(CommandManager.argument("biome_name", StringArgumentType.string())
+                                        .executes(CommandRegistry::debugBiomeCommand)
+                                )
+                        )
                 )
                 .then(CommandManager.literal("reload")
                         .requires(source -> source.hasPermissionLevel(3)) // OP only
@@ -227,15 +235,6 @@ public class CommandRegistry {
     }
 
     /**
-     * Debug registry information
-     */
-    private static int debugRegistryCommand(CommandContext<ServerCommandSource> context) {
-        ServerCommandSource source = context.getSource();
-
-        return 1;
-    }
-
-    /**
      * Debug dimension information
      */
     private static int debugDimensionsCommand(CommandContext<ServerCommandSource> context) {
@@ -314,4 +313,138 @@ public class CommandRegistry {
             return 0;
         }
     }
+
+    /**
+     * Debug registry information
+     */
+    private static int debugRegistryCommand(CommandContext<ServerCommandSource> context) {
+        ServerCommandSource source = context.getSource();
+
+        source.sendFeedback(() -> Text.literal("=== COMPONENT REGISTRY DEBUG ===")
+                .formatted(Formatting.YELLOW, Formatting.BOLD), false);
+
+        try {
+            // Get component registry stats
+            String registryStats = net.starlight.terradyne.planet.biology.BiomeComponentRegistry.getRegistryStats();
+            String[] lines = registryStats.split("\n");
+
+            for (String line : lines) {
+                source.sendFeedback(() -> Text.literal(line).formatted(Formatting.WHITE), false);
+            }
+
+            // Get runtime tree feature stats
+            String treeStats = net.starlight.terradyne.planet.features.RuntimeTreeFeatures.getCacheStats();
+            source.sendFeedback(() -> Text.literal(treeStats).formatted(Formatting.AQUA), false);
+
+        } catch (Exception e) {
+            source.sendError(Text.literal("Failed to get registry stats: " + e.getMessage()));
+        }
+
+        return 1;
+    }
+
+    /**
+     * Debug component system
+     */
+    private static int debugComponentsCommand(CommandContext<ServerCommandSource> context) {
+        ServerCommandSource source = context.getSource();
+
+        source.sendFeedback(() -> Text.literal("=== COMPONENT SYSTEM DEBUG ===")
+                .formatted(Formatting.GREEN, Formatting.BOLD), false);
+
+        try {
+            // Show vegetation palettes
+            source.sendFeedback(() -> Text.literal("Vegetation Palettes:")
+                    .formatted(Formatting.YELLOW), false);
+
+            for (var crustType : net.starlight.terradyne.planet.physics.CrustComposition.values()) {
+                var palette = net.starlight.terradyne.planet.biology.VegetationPalette.fromCrustComposition(crustType);
+
+                source.sendFeedback(() -> Text.literal("  " + crustType.getDisplayName() + " → " + palette.getDisplayName())
+                        .formatted(palette.hasVegetation() ? Formatting.GREEN : Formatting.RED), false);
+            }
+
+            // Show sample biome components
+            source.sendFeedback(() -> Text.literal("\nSample Biome Components:")
+                    .formatted(Formatting.YELLOW), false);
+
+            var sampleBiomes = new net.minecraft.registry.RegistryKey[] {
+                    net.starlight.terradyne.planet.biome.ModBiomes.OAK_FOREST,
+                    net.starlight.terradyne.planet.biome.ModBiomes.JUNGLE,
+                    net.starlight.terradyne.planet.biome.ModBiomes.SANDY_DESERT,
+                    net.starlight.terradyne.planet.biome.ModBiomes.VOLCANIC_MOUNTAINS
+            };
+
+            for (var biomeKey : sampleBiomes) {
+                var components = net.starlight.terradyne.planet.biology.BiomeComponentRegistry.getComponents(biomeKey);
+                if (components != null) {
+                    source.sendFeedback(() -> Text.literal("  " + biomeKey.getValue().getPath() + ":")
+                            .formatted(Formatting.AQUA), false);
+                    source.sendFeedback(() -> Text.literal("    " + components.toString())
+                            .formatted(Formatting.WHITE), false);
+                }
+            }
+
+        } catch (Exception e) {
+            source.sendError(Text.literal("Failed to show component debug: " + e.getMessage()));
+        }
+
+        return 1;
+    }
+
+    /**
+     * Debug specific biome components
+     */
+    private static int debugBiomeCommand(CommandContext<ServerCommandSource> context) {
+        ServerCommandSource source = context.getSource();
+        String biomeName = StringArgumentType.getString(context, "biome_name");
+
+        try {
+            // Find biome by name
+            net.minecraft.util.Identifier biomeId = new net.minecraft.util.Identifier("terradyne", biomeName.toLowerCase());
+            net.minecraft.registry.RegistryKey<net.minecraft.world.biome.Biome> biomeKey =
+                    net.minecraft.registry.RegistryKey.of(net.minecraft.registry.RegistryKeys.BIOME, biomeId);
+
+            var components = net.starlight.terradyne.planet.biology.BiomeComponentRegistry.getComponents(biomeKey);
+
+            if (components == null) {
+                source.sendError(Text.literal("Biome '" + biomeName + "' not found or has no components"));
+                return 0;
+            }
+
+            source.sendFeedback(() -> Text.literal("=== BIOME: " + biomeName.toUpperCase() + " ===")
+                    .formatted(Formatting.GOLD, Formatting.BOLD), false);
+
+            source.sendFeedback(() -> Text.literal("Components: " + components.toString())
+                    .formatted(Formatting.WHITE), false);
+
+            // Show feature description for different planet types
+            var crustTypes = new net.starlight.terradyne.planet.physics.CrustComposition[]{
+                    net.starlight.terradyne.planet.physics.CrustComposition.SILICATE,
+                    net.starlight.terradyne.planet.physics.CrustComposition.CARBONACEOUS,
+                    net.starlight.terradyne.planet.physics.CrustComposition.BASALTIC
+            };
+
+            for (var crustType : crustTypes) {
+                source.sendFeedback(() -> Text.literal("\nOn " + crustType.getDisplayName() + " planet:")
+                        .formatted(Formatting.YELLOW), false);
+
+                String description = net.starlight.terradyne.planet.biology.BiomeFeatureGenerator.getFeatureDescription(
+                        biomeKey, crustType, 15.0, 0.5, 0.7); // Sample conditions
+
+                String[] lines = description.split("\n");
+                for (String line : lines) {
+                    source.sendFeedback(() -> Text.literal("  " + line)
+                            .formatted(Formatting.GRAY), false);
+                }
+            }
+
+        } catch (Exception e) {
+            source.sendError(Text.literal("Failed to debug biome: " + e.getMessage()));
+        }
+
+        return 1;
+
+    }
+
 }
