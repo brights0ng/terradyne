@@ -153,7 +153,7 @@ public class Terradyne implements ModInitializer {
 	 */
 	private void registerServerEvents() {
 		try {
-			ServerLifecycleEvents.SERVER_STARTED.register(server -> {
+			ServerLifecycleEvents.SERVER_STARTING.register(server -> {
 				Terradyne.server = server;
 				LOGGER.info("Server started - Terradyne is ready for planet generation");
 			});

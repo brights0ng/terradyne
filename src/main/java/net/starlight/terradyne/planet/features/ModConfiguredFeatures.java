@@ -212,7 +212,7 @@ public class ModConfiguredFeatures {
      * FIXED: Method called by TerradyneDataGenerator
      */
     public static void bootstrap(net.minecraft.registry.Registerable<ConfiguredFeature<?, ?>> context) {
-        VegetationPalette defaultPalette = VegetationPalette.TEMPERATE_DECIDUOUS;
+        VegetationPalette defaultPalette = VegetationPalette.OXYGEN_DECIDUOUS;
 
         // Register all tree configured features
         register(context, LARGE_DECIDUOUS_TREE, createTreeConfig(TreeType.LARGE_DECIDUOUS, defaultPalette));

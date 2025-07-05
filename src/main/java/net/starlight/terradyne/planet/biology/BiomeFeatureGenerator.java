@@ -10,24 +10,25 @@ import net.minecraft.world.gen.feature.PlacedFeature;
 import net.starlight.terradyne.Terradyne;
 import net.starlight.terradyne.planet.biology.BiomeFeatureComponents.*;
 import net.starlight.terradyne.planet.features.ModPlacedFeatures;
-import net.starlight.terradyne.planet.physics.CrustComposition;
+import net.starlight.terradyne.planet.physics.AtmosphereComposition;
 
 /**
  * Converts BiomeFeatureComponents into Minecraft GenerationSettings
- * FIXED: Now actually adds features to generation settings using data-generated placed features
+ * UPDATED: Now uses atmospheric composition instead of crust composition for vegetation
  */
 public class BiomeFeatureGenerator {
 
     /**
      * Create GenerationSettings from BiomeFeatureComponents and planet conditions
-     * FIXED: Now accepts registries parameter to access placed features
+     * UPDATED: Now uses atmospheric composition for vegetation selection
      */
     public static GenerationSettings createGenerationSettings(
             RegistryKey<Biome> biomeKey,
-            CrustComposition crustComposition,
+            AtmosphereComposition atmosphereComposition,
             double temperature,
             double humidity,
             double habitability,
+            double atmosphericDensity,
             RegistryWrapper.WrapperLookup registries) {
 
         GenerationSettings.Builder builder = new GenerationSettings.Builder();
@@ -39,32 +40,35 @@ public class BiomeFeatureGenerator {
             return builder.build();
         }
 
-        // Get vegetation palette from crust composition
-        VegetationPalette palette = VegetationPalette.fromCrustComposition(crustComposition);
+        // Get vegetation palette from atmosphere composition
+        VegetationPalette basePalette = VegetationPalette.fromAtmosphereComposition(atmosphereComposition);
 
-        // Apply climate variation to palette
-        palette = palette.getClimateVariation(temperature, humidity);
+        // Choose appropriate variant based on tree type
+        VegetationPalette palette = components.getLargeVegetation() != null ?
+                VegetationPalette.getAppropriateVariant(basePalette, components.getLargeVegetation()) : basePalette;
 
         // Add tree features if vegetation is possible
         if (palette.hasVegetation() && components.getLargeVegetation() != null) {
-            addTreeFeatures(builder, components.getLargeVegetation(), palette, temperature, humidity, habitability, registries);
+            addTreeFeatures(builder, components.getLargeVegetation(), palette, temperature, humidity,
+                    habitability, atmosphericDensity, registries);
         }
 
         // TODO: Add other component types (bushes, crops, terrain features, ground cover)
         // These will be implemented in future iterations
 
-        Terradyne.LOGGER.debug("Generated features for biome {}: trees={}, palette={}",
+        Terradyne.LOGGER.debug("Generated features for biome {}: trees={}, atmosphere={}, palette={}",
                 biomeKey.getValue().getPath(),
                 components.getLargeVegetation() != null ?
                         components.getLargeVegetation().getDisplayName() : "none",
+                atmosphereComposition.getDisplayName(),
                 palette.getDisplayName());
 
         return builder.build();
     }
 
     /**
-     * FIXED: Add tree features to generation settings using data-generated placed features
-     * Now actually adds features to the builder instead of just calculating them!
+     * Add tree features to generation settings using data-generated placed features
+     * UPDATED: Now includes atmospheric density in calculations
      */
     private static void addTreeFeatures(
             GenerationSettings.Builder builder,
@@ -73,16 +77,21 @@ public class BiomeFeatureGenerator {
             double temperature,
             double humidity,
             double habitability,
+            double atmosphericDensity,
             RegistryWrapper.WrapperLookup registries) {
 
         try {
-            // Calculate tree density based on environmental factors
-            double density = BiomeFeatureComponents.DensityCalculator.calculateTreeDensity(habitability, humidity, temperature);
+            // Calculate tree density with atmospheric density factor
+            double baseDensity = BiomeFeatureComponents.DensityCalculator.calculateTreeDensity(habitability, humidity, temperature);
+
+            // Apply atmospheric density multiplier (more atmosphere = more trees, but capped)
+            double atmosphericMultiplier = Math.max(0.1, Math.min(2.0, atmosphericDensity)); // Clamp between 0.1x and 2.0x
+            double finalDensity = baseDensity * atmosphericMultiplier;
 
             // Skip if density is too low
-            if (density < 0.05) {
-                Terradyne.LOGGER.debug("Skipping tree generation for {}: density too low ({:.3f})",
-                        treeType.getDisplayName(), density);
+            if (finalDensity < 0.05) {
+                Terradyne.LOGGER.debug("Skipping tree generation for {}: final density too low ({:.3f} = {:.3f} base × {:.3f} atmospheric)",
+                        treeType.getDisplayName(), finalDensity, baseDensity, atmosphericMultiplier);
                 return;
             }
 
@@ -100,11 +109,11 @@ public class BiomeFeatureGenerator {
             // Get the placed feature entry
             var placedFeatureEntry = placedFeatureRegistry.getOrThrow(placedFeatureKey);
 
-            // FINALLY! Actually add the feature to the generation settings
+            // Add the feature to the generation settings
             builder.feature(GenerationStep.Feature.VEGETAL_DECORATION, placedFeatureEntry);
 
-            Terradyne.LOGGER.info("✅ Added tree feature: {} (density: {:.2f}) for palette: {} to biome generation",
-                    treeType.getDisplayName(), density, palette.getDisplayName());
+            Terradyne.LOGGER.info("✅ Added tree feature: {} (density: {:.2f} = {:.2f} × {:.2f}) for palette: {} to biome generation",
+                    treeType.getDisplayName(), finalDensity, baseDensity, atmosphericMultiplier, palette.getDisplayName());
 
         } catch (Exception e) {
             Terradyne.LOGGER.error("❌ Failed to add tree features for {}: {}", treeType.getDisplayName(), e.getMessage());
@@ -113,7 +122,6 @@ public class BiomeFeatureGenerator {
 
     /**
      * Map TreeType to corresponding placed feature registry key
-     * FIXED: Now returns actual placed feature keys from ModPlacedFeatures
      */
     private static RegistryKey<PlacedFeature> getPlacedFeatureKey(TreeType treeType) {
         return switch (treeType) {
@@ -132,30 +140,11 @@ public class BiomeFeatureGenerator {
     }
 
     /**
-     * Calculate placement attempts based on tree type and density
-     * (This is now mainly for informational purposes since placement is handled by placed features)
-     */
-    private static int calculatePlacementAttempts(TreeType treeType, double density) {
-        int baseAttempts = switch (treeType) {
-            case LARGE_DECIDUOUS -> 8;
-            case LARGE_CONIFEROUS -> 6;
-            case SMALL_DECIDUOUS -> 12;
-            case SMALL_CONIFEROUS -> 10;
-            case SPARSE_DECIDUOUS, SPARSE_CONIFEROUS -> 2;
-            case TROPICAL_CANOPY, THERMOPHILIC_GROVES -> 4;
-            case MANGROVE_CLUSTERS -> 6;
-            case CARBONACEOUS_STRUCTURES -> 3;
-            case CRYSTALLINE_GROWTHS -> 2;
-        };
-
-        return Math.max(1, (int) Math.round(baseAttempts * density));
-    }
-
-    /**
      * Calculate feature density multiplier for environmental conditions
-     * This adjusts the base placement attempts based on physics conditions
+     * UPDATED: Now includes atmospheric density factor
      */
-    public static double calculateFeatureDensityMultiplier(TreeType treeType, double temperature, double humidity, double habitability) {
+    public static double calculateFeatureDensityMultiplier(TreeType treeType, double temperature, double humidity,
+                                                           double habitability, double atmosphericDensity) {
         // Base density from physics
         double baseDensity = BiomeFeatureComponents.DensityCalculator.calculateTreeDensity(habitability, humidity, temperature);
 
@@ -170,44 +159,52 @@ public class BiomeFeatureGenerator {
             case CARBONACEOUS_STRUCTURES, CRYSTALLINE_GROWTHS -> 0.4; // Unusual formations
         };
 
-        return baseDensity * typeMultiplier;
+        // Apply atmospheric density factor
+        double atmosphericMultiplier = Math.max(0.1, Math.min(2.0, atmosphericDensity));
+
+        return baseDensity * typeMultiplier * atmosphericMultiplier;
     }
 
     /**
-     * Check if biome should have any vegetation based on crust composition
+     * Check if biome should have any vegetation based on atmosphere composition
+     * UPDATED: Now checks atmosphere instead of crust
      */
-    public static boolean canSupportVegetation(CrustComposition crustComposition) {
-        VegetationPalette palette = VegetationPalette.fromCrustComposition(crustComposition);
+    public static boolean canSupportVegetation(AtmosphereComposition atmosphereComposition) {
+        VegetationPalette palette = VegetationPalette.fromAtmosphereComposition(atmosphereComposition);
         return palette.hasVegetation();
     }
 
     /**
      * Get description of what features will be generated for debugging
+     * UPDATED: Now uses atmospheric composition
      */
     public static String getFeatureDescription(
             RegistryKey<Biome> biomeKey,
-            CrustComposition crustComposition,
+            AtmosphereComposition atmosphereComposition,
             double temperature,
             double humidity,
-            double habitability) {
+            double habitability,
+            double atmosphericDensity) {
 
         BiomeFeatureComponents components = BiomeComponentRegistry.getComponents(biomeKey);
         if (components == null) {
             return "No components defined";
         }
 
-        VegetationPalette palette = VegetationPalette.fromCrustComposition(crustComposition);
-        palette = palette.getClimateVariation(temperature, humidity);
+        VegetationPalette basePalette = VegetationPalette.fromAtmosphereComposition(atmosphereComposition);
+        VegetationPalette palette = components.getLargeVegetation() != null ?
+                VegetationPalette.getAppropriateVariant(basePalette, components.getLargeVegetation()) : basePalette;
 
         StringBuilder description = new StringBuilder();
         description.append(String.format("Biome: %s\n", biomeKey.getValue().getPath()));
-        description.append(String.format("Crust: %s -> Palette: %s\n",
-                crustComposition.getDisplayName(), palette.getDisplayName()));
-        description.append(String.format("Climate: T=%.1f°C, H=%.2f, Hab=%.2f\n",
-                temperature, humidity, habitability));
+        description.append(String.format("Atmosphere: %s -> Palette: %s\n",
+                atmosphereComposition.getDisplayName(), palette.getDisplayName()));
+        description.append(String.format("Climate: T=%.1f°C, H=%.2f, Hab=%.2f, AtmDens=%.2f\n",
+                temperature, humidity, habitability, atmosphericDensity));
 
         if (palette.hasVegetation() && components.getLargeVegetation() != null) {
-            double density = calculateFeatureDensityMultiplier(components.getLargeVegetation(), temperature, humidity, habitability);
+            double density = calculateFeatureDensityMultiplier(components.getLargeVegetation(),
+                    temperature, humidity, habitability, atmosphericDensity);
             description.append(String.format("Trees: %s (density: %.2f)\n",
                     components.getLargeVegetation().getDisplayName(), density));
         } else {
@@ -221,33 +218,19 @@ public class BiomeFeatureGenerator {
 
     /**
      * Create generation settings with planet-aware feature selection
-     * FIXED: Now accepts registries parameter
+     * UPDATED: Now uses atmospheric composition
      */
     public static GenerationSettings createPlanetAwareGenerationSettings(
             RegistryKey<Biome> biomeKey,
-            CrustComposition crustComposition,
+            AtmosphereComposition atmosphereComposition,
             double averageTemperature,
             double averageHumidity,
             double planetHabitability,
+            double atmosphericDensity,
             RegistryWrapper.WrapperLookup registries) {
 
-        return createGenerationSettings(biomeKey, crustComposition, averageTemperature, averageHumidity, planetHabitability, registries);
-    }
-
-    /**
-     * Overloaded method for backwards compatibility during transition
-     * This version falls back to minimal generation since it can't access registries
-     */
-    public static GenerationSettings createGenerationSettings(
-            RegistryKey<Biome> biomeKey,
-            CrustComposition crustComposition,
-            double temperature,
-            double humidity,
-            double habitability) {
-
-        Terradyne.LOGGER.warn("BiomeFeatureGenerator called without registries - falling back to minimal generation for biome: {}",
-                biomeKey.getValue());
-        return createMinimalGeneration();
+        return createGenerationSettings(biomeKey, atmosphereComposition, averageTemperature,
+                averageHumidity, planetHabitability, atmosphericDensity, registries);
     }
 
     /**
@@ -257,5 +240,41 @@ public class BiomeFeatureGenerator {
     public static GenerationSettings createMinimalGeneration() {
         GenerationSettings.Builder builder = new GenerationSettings.Builder();
         return builder.build();
+    }
+
+    /**
+     * Get grass and foliage colors for a biome based on atmospheric vegetation
+     * UPDATED: New method for atmospheric color calculation
+     */
+    public static BiomeColors calculateBiomeColors(
+            RegistryKey<Biome> biomeKey,
+            AtmosphereComposition atmosphereComposition,
+            double temperature,
+            double humidity) {
+
+        BiomeFeatureComponents components = BiomeComponentRegistry.getComponents(biomeKey);
+        VegetationPalette palette = VegetationPalette.fromAtmosphereComposition(atmosphereComposition);
+
+        TreeType treeType = components != null ? components.getLargeVegetation() : null;
+        VegetationPalette finalPalette = treeType != null ?
+                VegetationPalette.getAppropriateVariant(palette, treeType) : palette;
+
+        int grassColor = finalPalette.getGrassColor(treeType);
+        int foliageColor = finalPalette.getFoliageColor(treeType);
+
+        return new BiomeColors(grassColor, foliageColor);
+    }
+
+    /**
+     * Container for biome color data
+     */
+    public static class BiomeColors {
+        public final int grassColor;
+        public final int foliageColor;
+
+        public BiomeColors(int grassColor, int foliageColor) {
+            this.grassColor = grassColor;
+            this.foliageColor = foliageColor;
+        }
     }
 }

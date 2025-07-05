@@ -35,7 +35,7 @@ public class FeatureDataProviders {
 
             // Use default vegetation palette for base tree configurations
             // (Individual planets will modify these via their biome component systems)
-            VegetationPalette defaultPalette = VegetationPalette.TEMPERATE_DECIDUOUS;
+            VegetationPalette defaultPalette = VegetationPalette.OXYGEN_DECIDUOUS;
 
             // Generate configured features for each tree type
             entries.add(ModConfiguredFeatures.LARGE_DECIDUOUS_TREE,
@@ -203,8 +203,8 @@ public class FeatureDataProviders {
             // Validate crust composition mappings
             System.out.println("Crust Composition Mappings:");
             for (CrustComposition crust : CrustComposition.values()) {
-                VegetationPalette palette = VegetationPalette.fromCrustComposition(crust);
-                System.out.println("  - " + crust.getDisplayName() + " -> " + palette.getDisplayName());
+//                VegetationPalette palette = VegetationPalette.fromCrustComposition(crust);
+//                System.out.println("  - " + crust.getDisplayName() + " -> " + palette.getDisplayName());
             }
 
             System.out.println("✅ Feature validation complete");

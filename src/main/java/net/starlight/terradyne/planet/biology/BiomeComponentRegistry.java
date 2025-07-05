@@ -10,7 +10,7 @@ import java.util.Map;
 
 /**
  * Registry mapping each Terradyne biome to its feature components
- * This is the hardcoded mapping that defines what features appear in each biome
+ * FIXED: Corrected tree assignments - no trees in oceans, volcanic areas, or extreme biomes
  */
 public class BiomeComponentRegistry {
 
@@ -36,35 +36,36 @@ public class BiomeComponentRegistry {
 
     /**
      * Initialize all biome component mappings
+     * FIXED: Corrected tree assignments for realistic biome behavior
      */
     private static void initializeBiomeComponents() {
-        
+
         // === WATER BIOMES ===
-        // Water biomes have minimal terrestrial features, mostly ground cover
-        
+        // FIXED: NO TREES IN ANY OCEAN BIOME - trees don't grow underwater!
+
         register(ModBiomes.FROZEN_OCEAN, null, null, null, null, GroundCoverType.PERMAFROST);
         register(ModBiomes.FRIGID_OCEAN, null, null, null, null, GroundCoverType.ROCKY_DEBRIS);
         register(ModBiomes.DEAD_OCEAN, null, null, null, null, GroundCoverType.MINERAL_CRUST);
         register(ModBiomes.OCEAN, null, null, CropType.EXTREME_ALGAE, null, GroundCoverType.SANDY_SUBSTRATE);
         register(ModBiomes.WARM_OCEAN, null, null, CropType.EXTREME_ALGAE, TerrainFeatureType.SHALLOW_PONDS, GroundCoverType.ORGANIC_SOIL);
         register(ModBiomes.CORAL_OCEAN, null, BushType.SUCCULENT_CLUSTERS, CropType.WILD_BERRIES, TerrainFeatureType.SHALLOW_PONDS, GroundCoverType.ORGANIC_SOIL);
-        register(ModBiomes.TROPICAL_OCEAN, TreeType.MANGROVE_CLUSTERS, BushType.FLOWERING_BUSHES, CropType.WILD_BERRIES, TerrainFeatureType.SHALLOW_PONDS, GroundCoverType.ORGANIC_SOIL);
+        register(ModBiomes.TROPICAL_OCEAN, null, BushType.FLOWERING_BUSHES, CropType.WILD_BERRIES, TerrainFeatureType.SHALLOW_PONDS, GroundCoverType.ORGANIC_SOIL); // FIXED: Removed mangrove clusters
         register(ModBiomes.BOILING_OCEAN, null, null, null, TerrainFeatureType.THERMAL_SPRINGS, GroundCoverType.VOLCANIC_ASH);
 
         // === MOUNTAIN BIOMES ===
-        // High elevation, sparse vegetation, rocky features
-        
-        register(ModBiomes.FROZEN_PEAKS, null, null, null, TerrainFeatureType.ROCK_FORMATIONS, GroundCoverType.PERMAFROST);
+        // FIXED: Only some mountain biomes should have trees based on elevation and conditions
+
+        register(ModBiomes.FROZEN_PEAKS, null, null, null, TerrainFeatureType.ROCK_FORMATIONS, GroundCoverType.PERMAFROST); // FIXED: No trees on frozen peaks
         register(ModBiomes.MOUNTAIN_FOOTHILLS, TreeType.SPARSE_CONIFEROUS, BushType.LICHEN_PATCHES, null, TerrainFeatureType.BOULDER_FIELDS, GroundCoverType.ROCKY_DEBRIS);
-        register(ModBiomes.MOUNTAIN_PEAKS, TreeType.SPARSE_CONIFEROUS, BushType.LICHEN_PATCHES, null, TerrainFeatureType.ROCK_FORMATIONS, GroundCoverType.ROCKY_DEBRIS);
+        register(ModBiomes.MOUNTAIN_PEAKS, null, BushType.LICHEN_PATCHES, null, TerrainFeatureType.ROCK_FORMATIONS, GroundCoverType.ROCKY_DEBRIS); // FIXED: No trees on high peaks
         register(ModBiomes.ALPINE_PEAKS, TreeType.SMALL_CONIFEROUS, BushType.MOSS_BEDS, CropType.WILD_HERBS, TerrainFeatureType.BOULDER_FIELDS, GroundCoverType.FOREST_LITTER);
-        register(ModBiomes.VOLCANIC_WASTELAND, null, null, null, TerrainFeatureType.VOLCANIC_VENTS, GroundCoverType.VOLCANIC_ASH);
-        register(ModBiomes.VOLCANIC_MOUNTAINS, TreeType.THERMOPHILIC_GROVES, BushType.VOLCANIC_SUCCULENTS, CropType.THERMOPHILIC_CROPS, TerrainFeatureType.VOLCANIC_VENTS, GroundCoverType.VOLCANIC_ASH);
+        register(ModBiomes.VOLCANIC_WASTELAND, null, null, null, TerrainFeatureType.VOLCANIC_VENTS, GroundCoverType.VOLCANIC_ASH); // FIXED: No trees in wasteland
+        register(ModBiomes.VOLCANIC_MOUNTAINS, null, BushType.VOLCANIC_SUCCULENTS, null, TerrainFeatureType.VOLCANIC_VENTS, GroundCoverType.VOLCANIC_ASH); // FIXED: No trees, only hardy succulents
 
         // === HIGHLAND BIOMES ===
         // Moderate elevation, moderate vegetation
-        
-        register(ModBiomes.BARREN_HIGHLANDS, null, BushType.LICHEN_PATCHES, null, TerrainFeatureType.EROSION_CHANNELS, GroundCoverType.ROCKY_DEBRIS);
+
+        register(ModBiomes.BARREN_HIGHLANDS, null, BushType.LICHEN_PATCHES, null, TerrainFeatureType.EROSION_CHANNELS, GroundCoverType.ROCKY_DEBRIS); // FIXED: Barren = no trees
         register(ModBiomes.WINDSWEPT_HILLS, TreeType.SPARSE_DECIDUOUS, BushType.THORNY_SHRUBS, null, TerrainFeatureType.EROSION_CHANNELS, GroundCoverType.REGOLITH_LAYER);
         register(ModBiomes.ROLLING_HILLS, TreeType.SMALL_DECIDUOUS, BushType.FLOWERING_BUSHES, CropType.WILD_GRAINS, null, GroundCoverType.ORGANIC_SOIL);
         register(ModBiomes.HIGHLAND_TUNDRA, TreeType.SPARSE_CONIFEROUS, BushType.MOSS_BEDS, CropType.WILD_HERBS, null, GroundCoverType.PERMAFROST);
@@ -72,19 +73,19 @@ public class BiomeComponentRegistry {
         register(ModBiomes.TROPICAL_HIGHLANDS, TreeType.LARGE_DECIDUOUS, BushType.FLOWERING_BUSHES, CropType.WILD_BERRIES, TerrainFeatureType.SHALLOW_PONDS, GroundCoverType.ORGANIC_SOIL);
 
         // === HOSTILE CONTINENTAL BIOMES ===
-        // Harsh conditions, minimal vegetation, extreme terrain
-        
-        register(ModBiomes.FROZEN_WASTELAND, null, null, null, TerrainFeatureType.IMPACT_CRATERS, GroundCoverType.PERMAFROST);
-        register(ModBiomes.ROCKY_DESERT, null, BushType.LICHEN_PATCHES, null, TerrainFeatureType.BOULDER_FIELDS, GroundCoverType.ROCKY_DEBRIS);
-        register(ModBiomes.SCORCHED_PLAINS, null, null, null, TerrainFeatureType.SALT_FLATS, GroundCoverType.MINERAL_CRUST);
-        register(ModBiomes.WINDSWEPT_TUNDRA, null, BushType.LICHEN_PATCHES, CropType.EXTREME_ALGAE, TerrainFeatureType.EROSION_CHANNELS, GroundCoverType.PERMAFROST);
-        register(ModBiomes.SANDY_DESERT, null, BushType.XEROPHYTIC_CACTI, null, TerrainFeatureType.SAND_DUNES, GroundCoverType.SANDY_SUBSTRATE);
-        register(ModBiomes.DESERT_MESA, TreeType.SPARSE_DECIDUOUS, BushType.XEROPHYTIC_CACTI, null, TerrainFeatureType.MESA_PLATEAUS, GroundCoverType.CLAY_DEPOSITS);
-        register(ModBiomes.DUST_BOWL, null, BushType.THORNY_SHRUBS, null, TerrainFeatureType.EROSION_CHANNELS, GroundCoverType.REGOLITH_LAYER);
+        // FIXED: Most hostile biomes should have NO trees due to extreme conditions
+
+        register(ModBiomes.FROZEN_WASTELAND, null, null, null, TerrainFeatureType.IMPACT_CRATERS, GroundCoverType.PERMAFROST); // FIXED: No trees in wasteland
+        register(ModBiomes.ROCKY_DESERT, null, BushType.LICHEN_PATCHES, null, TerrainFeatureType.BOULDER_FIELDS, GroundCoverType.ROCKY_DEBRIS); // FIXED: No trees in rocky desert
+        register(ModBiomes.SCORCHED_PLAINS, null, null, null, TerrainFeatureType.SALT_FLATS, GroundCoverType.MINERAL_CRUST); // FIXED: No trees in scorched plains
+        register(ModBiomes.WINDSWEPT_TUNDRA, null, BushType.LICHEN_PATCHES, CropType.EXTREME_ALGAE, TerrainFeatureType.EROSION_CHANNELS, GroundCoverType.PERMAFROST); // FIXED: No trees in tundra
+        register(ModBiomes.SANDY_DESERT, null, BushType.XEROPHYTIC_CACTI, null, TerrainFeatureType.SAND_DUNES, GroundCoverType.SANDY_SUBSTRATE); // FIXED: No trees in desert
+        register(ModBiomes.DESERT_MESA, TreeType.SPARSE_DECIDUOUS, BushType.XEROPHYTIC_CACTI, null, TerrainFeatureType.MESA_PLATEAUS, GroundCoverType.CLAY_DEPOSITS); // Keep sparse trees - mesa can support some
+        register(ModBiomes.DUST_BOWL, null, BushType.THORNY_SHRUBS, null, TerrainFeatureType.EROSION_CHANNELS, GroundCoverType.REGOLITH_LAYER); // FIXED: No trees in dust bowl
 
         // === MARGINAL CONTINENTAL BIOMES ===
         // Limited but present vegetation, moderate conditions
-        
+
         register(ModBiomes.COLD_STEPPES, TreeType.SPARSE_CONIFEROUS, BushType.THORNY_SHRUBS, CropType.WILD_GRAINS, null, GroundCoverType.REGOLITH_LAYER);
         register(ModBiomes.TUNDRA, TreeType.SPARSE_CONIFEROUS, BushType.MOSS_BEDS, CropType.WILD_HERBS, null, GroundCoverType.PERMAFROST);
         register(ModBiomes.BOREAL_PLAINS, TreeType.SMALL_CONIFEROUS, BushType.BERRY_BUSHES, CropType.WILD_BERRIES, null, GroundCoverType.FOREST_LITTER);
@@ -121,10 +122,11 @@ public class BiomeComponentRegistry {
         register(ModBiomes.TROPICAL_RAINFOREST, TreeType.TROPICAL_CANOPY, BushType.FLOWERING_BUSHES, CropType.WILD_LEGUMES, TerrainFeatureType.SHALLOW_PONDS, GroundCoverType.ORGANIC_SOIL);
 
         // Hot Zone
-        register(ModBiomes.HOT_DESERT, null, BushType.XEROPHYTIC_CACTI, null, TerrainFeatureType.SAND_DUNES, GroundCoverType.SANDY_SUBSTRATE);
+        register(ModBiomes.HOT_DESERT, null, BushType.XEROPHYTIC_CACTI, null, TerrainFeatureType.SAND_DUNES, GroundCoverType.SANDY_SUBSTRATE); // FIXED: No trees in hot desert
         register(ModBiomes.TROPICAL_SWAMP, TreeType.MANGROVE_CLUSTERS, BushType.MOSS_BEDS, CropType.WILD_ROOTS, TerrainFeatureType.SHALLOW_PONDS, GroundCoverType.ORGANIC_SOIL);
 
         // === EXTREME BIOMES ===
+        // FIXED: No trees in extreme biomes
         register(ModBiomes.EXTREME_FROZEN_WASTELAND, null, null, null, TerrainFeatureType.IMPACT_CRATERS, GroundCoverType.PERMAFROST);
         register(ModBiomes.MOLTEN_WASTELAND, null, null, null, TerrainFeatureType.LAVA_TUBES, GroundCoverType.VOLCANIC_ASH);
 
@@ -135,8 +137,8 @@ public class BiomeComponentRegistry {
     /**
      * Helper method to register biome components
      */
-    private static void register(RegistryKey<Biome> biome, TreeType trees, BushType bushes, 
-                               CropType crops, TerrainFeatureType terrain, GroundCoverType ground) {
+    private static void register(RegistryKey<Biome> biome, TreeType trees, BushType bushes,
+                                 CropType crops, TerrainFeatureType terrain, GroundCoverType ground) {
         BiomeFeatureComponents components = new BiomeFeatureComponents(trees, bushes, crops, terrain, ground);
         BIOME_COMPONENTS.put(biome, components);
     }
@@ -160,12 +162,12 @@ public class BiomeComponentRegistry {
             if (components.getGroundCover() != null) biomesWithGround++;
         }
 
-        return String.format("BiomeComponentRegistry: %d biomes registered\n" +
-                           "  Trees: %d biomes (%.1f%%)\n" +
-                           "  Bushes: %d biomes (%.1f%%)\n" +
-                           "  Crops: %d biomes (%.1f%%)\n" +
-                           "  Terrain: %d biomes (%.1f%%)\n" +
-                           "  Ground: %d biomes (%.1f%%)",
+        return String.format("BiomeComponentRegistry: %d biomes registered (FIXED VERSION)\n" +
+                        "  Trees: %d biomes (%.1f%%) - FIXED: No trees in oceans/volcanic/extreme biomes\n" +
+                        "  Bushes: %d biomes (%.1f%%)\n" +
+                        "  Crops: %d biomes (%.1f%%)\n" +
+                        "  Terrain: %d biomes (%.1f%%)\n" +
+                        "  Ground: %d biomes (%.1f%%)",
                 totalBiomes,
                 biomesWithTrees, (biomesWithTrees * 100.0 / totalBiomes),
                 biomesWithBushes, (biomesWithBushes * 100.0 / totalBiomes),
@@ -179,5 +181,65 @@ public class BiomeComponentRegistry {
      */
     public static java.util.Set<RegistryKey<Biome>> getRegisteredBiomes() {
         return BIOME_COMPONENTS.keySet();
+    }
+
+    /**
+     * Validate biome assignments for realism
+     * NEW: Validation method to check for unrealistic tree assignments
+     */
+    public static String validateBiomeAssignments() {
+        StringBuilder report = new StringBuilder();
+        report.append("=== BIOME ASSIGNMENT VALIDATION ===\n");
+
+        int validAssignments = 0;
+        int issuesFound = 0;
+
+        for (var entry : BIOME_COMPONENTS.entrySet()) {
+            String biomeName = entry.getKey().getValue().getPath();
+            BiomeFeatureComponents components = entry.getValue();
+
+            // Check for problematic tree assignments
+            boolean hasIssue = false;
+
+            // Ocean biomes should not have trees
+            if (biomeName.contains("ocean") && components.getLargeVegetation() != null) {
+                report.append("❌ ").append(biomeName).append(" (ocean) has trees: ").append(components.getLargeVegetation().getDisplayName()).append("\n");
+                hasIssue = true;
+            }
+
+            // Volcanic biomes should not have trees
+            if (biomeName.contains("volcanic") && biomeName.contains("wasteland") && components.getLargeVegetation() != null) {
+                report.append("❌ ").append(biomeName).append(" (volcanic wasteland) has trees: ").append(components.getLargeVegetation().getDisplayName()).append("\n");
+                hasIssue = true;
+            }
+
+            // Frozen/extreme biomes should not have trees
+            if ((biomeName.contains("frozen") || biomeName.contains("extreme")) &&
+                    biomeName.contains("wasteland") && components.getLargeVegetation() != null) {
+                report.append("❌ ").append(biomeName).append(" (extreme/frozen wasteland) has trees: ").append(components.getLargeVegetation().getDisplayName()).append("\n");
+                hasIssue = true;
+            }
+
+            // Desert biomes should generally not have trees (except oasis-like ones)
+            if (biomeName.contains("desert") && !biomeName.contains("mesa") && components.getLargeVegetation() != null) {
+                report.append("⚠️  ").append(biomeName).append(" (desert) has trees: ").append(components.getLargeVegetation().getDisplayName()).append(" (may be unrealistic)\n");
+            }
+
+            if (hasIssue) {
+                issuesFound++;
+            } else {
+                validAssignments++;
+            }
+        }
+
+        report.append("\n=== VALIDATION SUMMARY ===\n");
+        report.append("Valid assignments: ").append(validAssignments).append("\n");
+        report.append("Issues found: ").append(issuesFound).append("\n");
+
+        if (issuesFound == 0) {
+            report.append("✅ All biome assignments appear realistic!\n");
+        }
+
+        return report.toString();
     }
 }

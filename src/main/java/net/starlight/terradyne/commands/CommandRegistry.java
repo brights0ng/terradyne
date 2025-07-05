@@ -357,12 +357,12 @@ public class CommandRegistry {
             source.sendFeedback(() -> Text.literal("Vegetation Palettes:")
                     .formatted(Formatting.YELLOW), false);
 
-            for (var crustType : net.starlight.terradyne.planet.physics.CrustComposition.values()) {
-                var palette = net.starlight.terradyne.planet.biology.VegetationPalette.fromCrustComposition(crustType);
-
-                source.sendFeedback(() -> Text.literal("  " + crustType.getDisplayName() + " → " + palette.getDisplayName())
-                        .formatted(palette.hasVegetation() ? Formatting.GREEN : Formatting.RED), false);
-            }
+//            for (var crustType : net.starlight.terradyne.planet.physics.CrustComposition.values()) {
+//                var palette = net.starlight.terradyne.planet.biology.VegetationPalette.fromCrustComposition(crustType);
+//
+//                source.sendFeedback(() -> Text.literal("  " + crustType.getDisplayName() + " → " + palette.getDisplayName())
+//                        .formatted(palette.hasVegetation() ? Formatting.GREEN : Formatting.RED), false);
+//            }
 
             // Show sample biome components
             source.sendFeedback(() -> Text.literal("\nSample Biome Components:")
@@ -428,15 +428,15 @@ public class CommandRegistry {
             for (var crustType : crustTypes) {
                 source.sendFeedback(() -> Text.literal("\nOn " + crustType.getDisplayName() + " planet:")
                         .formatted(Formatting.YELLOW), false);
+//
+//                String description = net.starlight.terradyne.planet.biology.BiomeFeatureGenerator.getFeatureDescription(
+//                        biomeKey, crustType, 15.0, 0.5, 0.7); // Sample conditions
 
-                String description = net.starlight.terradyne.planet.biology.BiomeFeatureGenerator.getFeatureDescription(
-                        biomeKey, crustType, 15.0, 0.5, 0.7); // Sample conditions
-
-                String[] lines = description.split("\n");
-                for (String line : lines) {
-                    source.sendFeedback(() -> Text.literal("  " + line)
-                            .formatted(Formatting.GRAY), false);
-                }
+//                String[] lines = description.split("\n");
+//                for (String line : lines) {
+//                    source.sendFeedback(() -> Text.literal("  " + line)
+//                            .formatted(Formatting.GRAY), false);
+//                }
             }
 
         } catch (Exception e) {
