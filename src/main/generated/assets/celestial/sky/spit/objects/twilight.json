@@ -1,0 +1,13 @@
+{
+  "type": "twilight",
+  "properties": {
+    "alpha": "twilightAlpha",
+    "blend": true,
+    "color": {
+      "blue": "0.2",
+      "green": "0.5",
+      "red": "1"
+    },
+    "is_solid": false
+  }
+}

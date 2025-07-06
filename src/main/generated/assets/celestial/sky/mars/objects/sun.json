@@ -1,0 +1,27 @@
+{
+  "display": {
+    "distance": "-100",
+    "pos_x": "0",
+    "pos_y": "0",
+    "pos_z": "0",
+    "scale": "13.157894736842104"
+  },
+  "properties": {
+    "alpha": "1 - rainAlpha",
+    "blend": true,
+    "color": {
+      "blue": "1",
+      "green": "1",
+      "red": "1"
+    },
+    "is_solid": false
+  },
+  "rotation": {
+    "base_degrees_x": "-90",
+    "base_degrees_z": "-90",
+    "degrees_x": "skyAngle + 90",
+    "degrees_y": "0",
+    "degrees_z": "0"
+  },
+  "texture": "minecraft:textures/environment/sun.png"
+}

@@ -1,0 +1,13 @@
+{
+  "NOTE": "Learn more about dimension registration here: https://github.com/fishcute/Celestial/wiki/JSON-Files#dimensionsjson",
+  "dimensions": [
+    "kepler442b",
+    "extremis",
+    "mars",
+    "spit",
+    "earth",
+    "keplerearthb",
+    "venus",
+    "proximacentaurib"
+  ]
+}

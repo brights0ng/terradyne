@@ -4,10 +4,7 @@
 	"compatibilityLevel": "JAVA_17",
 	"mixins": [],
 	"client": [
-		"BiomeColorsMixin",
-		"ClientWorldSkyMixin",
-		"BackgroundRendererMixin",
-		"ClientWorldPropertiesMixin"
+		"BiomeColorsMixin"
 	],
 	"server": [],
 	"injectors": {

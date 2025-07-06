@@ -47,7 +47,7 @@ public class Terradyne implements ModInitializer {
 		LOGGER.info("✅ Terradyne initialized successfully!");
 		logSystemStatus();
 	}
-
+	
 	/**
 	 * FIXED: Register blocks
 	 */

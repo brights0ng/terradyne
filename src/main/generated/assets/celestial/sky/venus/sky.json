@@ -1,0 +1,26 @@
+{
+  "environment": {
+    "NOTE": "Do not change this value!",
+    "clouds": {
+      "color": "FFD4AA",
+      "height": "128"
+    },
+    "fog": {
+      "fog_end": "200.0",
+      "fog_start": "80.0"
+    },
+    "fog_color": {
+      "base_color": "FFE4B5"
+    },
+    "sky_color": {
+      "base_color": "FFA500"
+    },
+    "twilight_alpha": "0"
+  },
+  "sky_objects": [
+    "twilight",
+    "moon",
+    "sun",
+    "stars"
+  ]
+}
