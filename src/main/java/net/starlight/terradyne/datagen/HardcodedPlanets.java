@@ -77,7 +77,7 @@ public class HardcodedPlanets {
             .setCircumference(38500)
             .setDistanceFromStar(7)  // Very close to red dwarf
             .setCrustComposition(CrustComposition.REGOLITHIC)
-            .setAtmosphereComposition(AtmosphereComposition.TRACE_ATMOSPHERE)
+            .setAtmosphereComposition(AtmosphereComposition.VACUUM)
             .setTectonicActivity(0.2)
             .setWaterContent(0.3)
             .setCrustalThickness(25.0)

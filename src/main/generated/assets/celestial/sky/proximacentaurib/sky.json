@@ -2,7 +2,7 @@
   "environment": {
     "NOTE": "Do not change this value!",
     "clouds": {
-      "color": "555555",
+      "color": "000000",
       "height": "128"
     },
     "fog": {
@@ -10,10 +10,10 @@
       "fog_start": "152.0"
     },
     "fog_color": {
-      "base_color": "696969"
+      "base_color": "000000"
     },
     "sky_color": {
-      "base_color": "2F2F2F"
+      "base_color": "000000"
     },
     "twilight_alpha": "0"
   },

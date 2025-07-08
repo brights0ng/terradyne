@@ -17,7 +17,7 @@ import java.util.concurrent.CompletableFuture;
 
 /**
  * Generates Celestial sky definition files for each Terradyne planet
- * Follows exact Celestial structure with proper dimensions.json and sky.json format
+ * Follows exact Celestial structure with proper dimension.json and sky.json format
  */
 public class CelestialSkyDataProvider implements DataProvider {
 
@@ -40,7 +40,7 @@ public class CelestialSkyDataProvider implements DataProvider {
     }
 
     /**
-     * Generate the main dimensions.json file with proper Celestial format
+     * Generate the main dimension.json file with proper Celestial format
      */
     private void generateDimensionsJson(DataWriter writer) {
         System.out.println("=== GENERATING CELESTIAL DIMENSIONS.JSON ===");
@@ -60,17 +60,17 @@ public class CelestialSkyDataProvider implements DataProvider {
             }
             dimensionsFile.add("dimensions", dimensionsArray);
 
-            // Write to assets/celestial/sky/dimensions.json
+            // Write to assets/celestial/sky/dimension.json
             Identifier dimensionsId = new Identifier("celestial", "sky/dimensions");
             Path dimensionsPath = output.getResolver(net.minecraft.data.DataOutput.OutputType.RESOURCE_PACK, "assets")
                     .resolveJson(dimensionsId);
 
             DataProvider.writeToPath(writer, dimensionsFile, dimensionsPath);
 
-            System.out.println("✅ Generated dimensions.json with " + planets.size() + " dimensions: " + planets.keySet());
+            System.out.println("✅ Generated dimension.json with " + planets.size() + " dimensions: " + planets.keySet());
 
         } catch (Exception e) {
-            System.err.println("❌ Failed to generate dimensions.json");
+            System.err.println("❌ Failed to generate dimension.json");
             e.printStackTrace();
         }
     }
