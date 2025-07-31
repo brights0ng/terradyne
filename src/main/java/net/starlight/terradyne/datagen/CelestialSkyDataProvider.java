@@ -17,7 +17,7 @@ import java.util.concurrent.CompletableFuture;
 
 /**
  * Generates Celestial sky definition files for each Terradyne planet
- * Follows exact Celestial structure with proper dimension.json and sky.json format
+ * FIXED: Follows exact Celestial structure with proper twilight object format
  */
 public class CelestialSkyDataProvider implements DataProvider {
 
@@ -60,9 +60,9 @@ public class CelestialSkyDataProvider implements DataProvider {
             }
             dimensionsFile.add("dimensions", dimensionsArray);
 
-            // Write to assets/celestial/sky/dimension.json
+            // FIXED: Write to assets/celestial/sky/dimension.json
             Identifier dimensionsId = new Identifier("celestial", "sky/dimensions");
-            Path dimensionsPath = output.getResolver(net.minecraft.data.DataOutput.OutputType.RESOURCE_PACK, "assets")
+            Path dimensionsPath = output.getResolver(net.minecraft.data.DataOutput.OutputType.RESOURCE_PACK, "")
                     .resolveJson(dimensionsId);
 
             DataProvider.writeToPath(writer, dimensionsFile, dimensionsPath);
@@ -97,9 +97,9 @@ public class CelestialSkyDataProvider implements DataProvider {
                 // Create sky.json for this planet
                 JsonObject skyJson = createPlanetSkyJson(config);
 
-                // Write to assets/celestial/sky/[planetKey]/sky.json
+                // FIXED: Write to assets/celestial/sky/[planetKey]/sky.json
                 Identifier skyId = new Identifier("celestial", "sky/" + planetKey + "/sky");
-                Path skyPath = output.getResolver(net.minecraft.data.DataOutput.OutputType.RESOURCE_PACK, "assets")
+                Path skyPath = output.getResolver(net.minecraft.data.DataOutput.OutputType.RESOURCE_PACK, "")
                         .resolveJson(skyId);
 
                 DataProvider.writeToPath(writer, skyJson, skyPath);
@@ -169,47 +169,48 @@ public class CelestialSkyDataProvider implements DataProvider {
     }
 
     /**
-     * Generate celestial objects in objects/ folder for each planet
+     * Generate celestial objects with sequential writing to avoid race conditions
      */
     private void generatePlanetObjects(DataWriter writer, String planetKey, PlanetConfig config) {
+        System.out.println("  → Generating objects for " + planetKey + "...");
+
+        // Create all objects first (separate from I/O)
+        JsonObject sun = createSunObject(config);
+        JsonObject moon = createMoonObject(config);
+        JsonObject stars = createStarsObject(config);
+        JsonObject twilight = createTwilightObject(config);
+
+        // Write sequentially with small delays
+        writeObjectWithDelay(writer, sun, planetKey, "sun");
+        writeObjectWithDelay(writer, moon, planetKey, "moon");
+        writeObjectWithDelay(writer, stars, planetKey, "stars");
+        writeObjectWithDelay(writer, twilight, planetKey, "twilight");
+    }
+
+    private void writeObjectWithDelay(DataWriter writer, JsonObject object, String planetKey, String objectName) {
         try {
-            // Generate objects/sun.json
-            JsonObject sun = createSunObject(config);
-            Identifier sunId = new Identifier("celestial", "sky/" + planetKey + "/objects/sun");
-            Path sunPath = output.getResolver(net.minecraft.data.DataOutput.OutputType.RESOURCE_PACK, "assets")
-                    .resolveJson(sunId);
-            DataProvider.writeToPath(writer, sun, sunPath);
+            Identifier objectId = new Identifier("celestial", "sky/" + planetKey + "/objects/" + objectName);
+            Path objectPath = output.getResolver(net.minecraft.data.DataOutput.OutputType.RESOURCE_PACK, "")
+                    .resolveJson(objectId);
 
-            // Generate objects/moon.json
-            JsonObject moon = createMoonObject(config);
-            Identifier moonId = new Identifier("celestial", "sky/" + planetKey + "/objects/moon");
-            Path moonPath = output.getResolver(net.minecraft.data.DataOutput.OutputType.RESOURCE_PACK, "assets")
-                    .resolveJson(moonId);
-            DataProvider.writeToPath(writer, moon, moonPath);
+            System.out.println("    → Writing " + objectName + ".json to: " + objectPath);
 
-            // Generate objects/stars.json
-            JsonObject stars = createStarsObject(config);
-            Identifier starsId = new Identifier("celestial", "sky/" + planetKey + "/objects/stars");
-            Path starsPath = output.getResolver(net.minecraft.data.DataOutput.OutputType.RESOURCE_PACK, "assets")
-                    .resolveJson(starsId);
-            DataProvider.writeToPath(writer, stars, starsPath);
+            // Write the file
+            DataProvider.writeToPath(writer, object, objectPath);
 
-            // Generate objects/twilight.json
-            JsonObject twilight = createTwilightObject(config);
-            Identifier twilightId = new Identifier("celestial", "sky/" + planetKey + "/objects/twilight");
-            Path twilightPath = output.getResolver(net.minecraft.data.DataOutput.OutputType.RESOURCE_PACK, "assets")
-                    .resolveJson(twilightId);
-            DataProvider.writeToPath(writer, twilight, twilightPath);
+            // Small delay to prevent race conditions
+            Thread.sleep(10);
 
-            System.out.println("  ✓ Generated celestial objects for " + planetKey);
+            System.out.println("    → Write call completed for " + objectName + ".json");
 
         } catch (Exception e) {
-            System.err.println("  ❌ Failed to generate objects for " + planetKey + ": " + e.getMessage());
+            System.err.println("    ❌ Exception writing " + objectName + ".json: " + e.getMessage());
+            e.printStackTrace();
         }
     }
 
     /**
-     * Create sun object with proper Celestial format
+     * FIXED: Create sun object with correct day/night timing
      */
     private JsonObject createSunObject(PlanetConfig config) {
         JsonObject sun = new JsonObject();
@@ -219,17 +220,17 @@ public class CelestialSkyDataProvider implements DataProvider {
         // Display settings
         JsonObject display = new JsonObject();
         double starDistance = config.getDistanceFromStar();
-        double sunScale = Math.max(10.0, Math.min(40.0, 3000.0 / starDistance)); // Scale based on distance
+        double sunScale = Math.max(10.0, Math.min(40.0, 6000.0 / starDistance));
         display.addProperty("scale", String.valueOf(sunScale));
         display.addProperty("pos_x", "0");
         display.addProperty("pos_y", "0");
         display.addProperty("pos_z", "0");
-        display.addProperty("distance", "-100");
+        display.addProperty("distance", "200");
         sun.add("display", display);
 
-        // Rotation settings
+        // FIXED: Adjust rotation so sun rises in morning, not at night
         JsonObject rotation = new JsonObject();
-        rotation.addProperty("degrees_x", "skyAngle + 90");
+        rotation.addProperty("degrees_x", "skyAngle + 90"); // Add 180 degrees to flip timing
         rotation.addProperty("degrees_y", "0");
         rotation.addProperty("degrees_z", "0");
         rotation.addProperty("base_degrees_x", "-90");
@@ -240,6 +241,8 @@ public class CelestialSkyDataProvider implements DataProvider {
         JsonObject properties = new JsonObject();
         properties.addProperty("is_solid", false);
         properties.addProperty("blend", true);
+
+        // FIXED: Sun always visible (no alpha changes)
         properties.addProperty("alpha", "1 - rainAlpha");
 
         // Sun color affected by atmospheric composition
@@ -257,7 +260,7 @@ public class CelestialSkyDataProvider implements DataProvider {
     }
 
     /**
-     * Create moon object with exact Celestial format
+     * FIXED: Create moon with atmosphere-dependent visibility
      */
     private JsonObject createMoonObject(PlanetConfig config) {
         JsonObject moon = new JsonObject();
@@ -270,14 +273,14 @@ public class CelestialSkyDataProvider implements DataProvider {
         display.addProperty("pos_x", "0");
         display.addProperty("pos_y", "0");
         display.addProperty("pos_z", "0");
-        display.addProperty("distance", "-100");
+        display.addProperty("distance", "200");
         moon.add("display", display);
 
-        // Rotation settings
+        // Moon rotation with slower orbit and inclination
         JsonObject rotation = new JsonObject();
-        rotation.addProperty("degrees_x", "skyAngle + 90");
+        rotation.addProperty("degrees_x", "(skyAngle * 2.96) + 180");
         rotation.addProperty("degrees_y", "0");
-        rotation.addProperty("degrees_z", "0");
+        rotation.addProperty("degrees_z", "(skyAngle * 0.1)");
         rotation.addProperty("base_degrees_x", "-90");
         rotation.addProperty("base_degrees_z", "-90");
         moon.add("rotation", rotation);
@@ -288,7 +291,11 @@ public class CelestialSkyDataProvider implements DataProvider {
         properties.addProperty("moon_phase", "moonPhase");
         properties.addProperty("is_solid", false);
         properties.addProperty("blend", true);
-        properties.addProperty("alpha", "1 - rainAlpha");
+
+        // FIXED: Atmosphere-dependent moon visibility
+        String moonAlphaFormula = getMoonAlphaFormula(config.getAtmosphereComposition(),
+                config.getAtmosphericDensity());
+        properties.addProperty("alpha", moonAlphaFormula);
 
         // Moon color (always white)
         JsonObject color = new JsonObject();
@@ -303,86 +310,263 @@ public class CelestialSkyDataProvider implements DataProvider {
     }
 
     /**
-     * Create stars object with proper texture reference
+     * Calculate moon visibility based on atmospheric conditions
+     */
+    private String getMoonAlphaFormula(AtmosphereComposition atmosphere, double atmosphericDensity) {
+        return switch (atmosphere) {
+            case VACUUM ->
+                    "1 - rainAlpha"; // Always full visibility - no atmosphere to scatter light
+
+            case TRACE_ATMOSPHERE ->
+                    "1 - rainAlpha"; // Always full visibility - atmosphere too thin to matter
+
+            case NOBLE_GAS_MIXTURE -> {
+                if (atmosphericDensity < 0.3) {
+                    yield "1 - rainAlpha"; // Thin noble gas atmosphere - full visibility
+                } else {
+                    yield "max(0.5, (1 - dayLight * 0.5)) * (1 - rainAlpha)"; // Half opacity during day
+                }
+            }
+
+            default ->
+                // All other atmospheres: Half opacity during day, full at night
+                    "max(0.5, (1 - dayLight * 0.5)) * (1 - rainAlpha)";
+        };
+    }
+
+    /**
+     * FIXED: Create stars object using populate for proper starfield
      */
     private JsonObject createStarsObject(PlanetConfig config) {
         JsonObject stars = new JsonObject();
 
-        stars.addProperty("texture", "minecraft:textures/environment/end_sky.png");
+        // FIXED: Use solid_color instead of texture
+        stars.addProperty("solid_color", "#ffffff");
 
-        // Display settings
+        // Display settings (base object - will be overridden by populate)
         JsonObject display = new JsonObject();
-        display.addProperty("scale", "30");
+        display.addProperty("scale", "0");  // Base scale 0, populate will override
         display.addProperty("pos_x", "0");
         display.addProperty("pos_y", "0");
         display.addProperty("pos_z", "0");
-        display.addProperty("distance", "-100");
+        display.addProperty("distance", "150");  // Base distance 0, populate will override
         stars.add("display", display);
+
+        // Rotation settings (same as sun/moon for proper positioning)
+        JsonObject rotation = new JsonObject();
+        rotation.addProperty("degrees_x", "skyAngle + 90");
+        rotation.addProperty("degrees_y", "0");
+        rotation.addProperty("degrees_z", "0");
+        rotation.addProperty("base_degrees_x", "-90");
+        rotation.addProperty("base_degrees_z", "-90");
+        stars.add("rotation", rotation);
 
         // Properties
         JsonObject properties = new JsonObject();
-        properties.addProperty("is_solid", false);
+        properties.addProperty("has_moon_phases", false);
+        properties.addProperty("is_solid", true);
         properties.addProperty("blend", true);
 
-        // Star visibility affected by atmospheric density
-        double starAlpha = Math.max(0.1, 1.0 - (config.getAtmosphericDensity() * 0.7));
-        properties.addProperty("alpha", String.valueOf(starAlpha) + " * starAlpha");
+        // FIXED: Use proper dayLight formula instead of starAlpha
+        String starAlphaFormula = getStarAlphaFormula(config.getAtmosphereComposition(),
+                config.getAtmosphericDensity());
+        properties.addProperty("alpha", starAlphaFormula);
 
-        // Star color (always white)
+        // Color object format
         JsonObject color = new JsonObject();
         color.addProperty("red", "1");
-        color.addProperty("blue", "1");
         color.addProperty("green", "1");
+        color.addProperty("blue", "1");
         properties.add("color", color);
 
         stars.add("properties", properties);
+
+        // FIXED: Add populate section for starfield
+        JsonObject populate = new JsonObject();
+        populate.addProperty("count", getStarCount(config.getAtmosphereComposition()));
+
+        // Populate rotation (random stars across sky)
+        JsonObject populateRotation = new JsonObject();
+        populateRotation.addProperty("min_degrees_x", 0);
+        populateRotation.addProperty("max_degrees_x", 360);
+        populateRotation.addProperty("min_degrees_y", 0);
+        populateRotation.addProperty("max_degrees_y", 360);
+        populateRotation.addProperty("min_degrees_z", 0);
+        populateRotation.addProperty("max_degrees_z", 360);
+        populate.add("rotation", populateRotation);
+
+        // Populate display (individual star properties)
+        JsonObject populateDisplay = new JsonObject();
+        populateDisplay.addProperty("min_scale", 0.3);
+        populateDisplay.addProperty("max_scale", 0.35);
+        populateDisplay.addProperty("min_pos_x", 0);
+        populateDisplay.addProperty("max_pos_x", 0);
+        populateDisplay.addProperty("min_pos_y", 0);
+        populateDisplay.addProperty("max_pos_y", 0);
+        populateDisplay.addProperty("min_pos_z", 0);
+        populateDisplay.addProperty("max_pos_z", 0);
+        populateDisplay.addProperty("min_distance", 0);
+        populateDisplay.addProperty("max_distance", 0);
+        populate.add("display", populateDisplay);
+
+        stars.add("populate", populate);
 
         return stars;
     }
 
     /**
-     * Create twilight object (basic implementation)
+     * Get star count based on atmospheric density
+     */
+    private int getStarCount(AtmosphereComposition atmosphere) {
+        return switch (atmosphere) {
+            case VACUUM -> 600;              // Many stars visible
+            case TRACE_ATMOSPHERE -> 500;    // Most stars visible
+            case NOBLE_GAS_MIXTURE -> 400;   // Standard count
+            default -> 300;                  // Fewer stars in thick atmosphere
+        };
+    }
+
+    /**
+     * FIXED: Proper star alpha formula using dayLight
+     */
+    private String getStarAlphaFormula(AtmosphereComposition atmosphere, double atmosphericDensity) {
+        return switch (atmosphere) {
+            case VACUUM ->
+                    "1"; // Always visible - no atmosphere
+
+            case TRACE_ATMOSPHERE ->
+                    "max((1 - dayLight) * (1 - rainAlpha) - 0.3, 0)"; // Mostly visible
+
+            case NOBLE_GAS_MIXTURE -> {
+                if (atmosphericDensity < 0.3) {
+                    yield "max((1 - dayLight) * (1 - rainAlpha) - 0.4, 0)"; // Moderate visibility
+                } else {
+                    yield "max((1 - dayLight) * (1 - rainAlpha) - 0.5, 0)"; // Standard formula
+                }
+            }
+
+            default ->
+                    "max((1 - dayLight) * (1 - rainAlpha) - 0.5, 0)"; // Standard atmospheric scattering
+        };
+    }
+
+    /**
+     * FIXED: Create twilight object with proper format matching the sample
      */
     private JsonObject createTwilightObject(PlanetConfig config) {
         JsonObject twilight = new JsonObject();
 
         twilight.addProperty("type", "twilight");
 
-        // Properties
-        JsonObject properties = new JsonObject();
-        properties.addProperty("is_solid", false);
-        properties.addProperty("blend", true);
-        properties.addProperty("alpha", "twilightAlpha");
+        // FIXED: Use solid_color and solid_color_transition instead of color object
+        String[] twilightColors = getTwilightColors(config.getAtmosphereComposition());
+        twilight.addProperty("solid_color", twilightColors[0]);
+        twilight.addProperty("solid_color_transition", twilightColors[1]);
 
-        // Twilight color based on atmospheric composition
-        JsonObject color = new JsonObject();
-        String[] twilightRGB = getTwilightRGB(config.getAtmosphereComposition());
-        color.addProperty("red", twilightRGB[0]);
-        color.addProperty("green", twilightRGB[1]);
-        color.addProperty("blue", twilightRGB[2]);
-        properties.add("color", color);
+        // FIXED: Add display section
+        JsonObject display = new JsonObject();
+        display.addProperty("scale", "1");
+        display.addProperty("pos_x", "0");
+        display.addProperty("pos_y", "0");
+        display.addProperty("pos_z", "0");
+        display.addProperty("distance", "100");
+        twilight.add("display", display);
+
+        // FIXED: Proper rotation section with twilight_rotation
+        JsonObject rotation = new JsonObject();
+        rotation.addProperty("base_degrees_y", "0");
+        rotation.addProperty("twilight_rotation", "skyAngle");  // This was the missing key!
+        twilight.add("rotation", rotation);
+
+        // FIXED: Properties section matching sample format
+        JsonObject properties = new JsonObject();
+        properties.addProperty("is_solid", true);
+        properties.addProperty("blend", true);
+
+        // FIXED: Atmosphere-dependent twilight intensity
+        String twilightAlphaFormula = getTwilightAlphaFormula(config.getAtmosphereComposition(),
+                config.getAtmosphericDensity());
+        properties.addProperty("alpha", twilightAlphaFormula);
 
         twilight.add("properties", properties);
 
         return twilight;
     }
 
-    // === COLOR CALCULATION METHODS ===
+    // === ATMOSPHERIC CALCULATION METHODS ===
+
+    /**
+     * FIXED: Get twilight colors as hex strings (solid_color and solid_color_transition)
+     */
+    private String[] getTwilightColors(AtmosphereComposition atmosphere) {
+        return switch (atmosphere) {
+            case VACUUM ->
+                    new String[]{"#000000", "#000000"}; // No twilight - black
+
+            case TRACE_ATMOSPHERE ->
+                    new String[]{"#330000", "#110000"}; // Very faint dark red
+
+            case OXYGEN_RICH ->
+                    new String[]{"#ffe533", "#b33333"}; // Standard yellow to red
+
+            case CARBON_DIOXIDE ->
+                    new String[]{"#ff6600", "#cc0000"}; // Orange to deep red (Venus-like)
+
+            case NITROGEN_RICH ->
+                    new String[]{"#cc99ff", "#660099"}; // Purple to dark purple
+
+            case METHANE ->
+                    new String[]{"#ffaa44", "#994400"}; // Orange-brown twilight
+
+            case WATER_VAPOR_RICH ->
+                    new String[]{"#ffcccc", "#ff6666"}; // Pink steam twilight
+
+            case HYDROGEN_SULFIDE ->
+                    new String[]{"#ffff66", "#cccc00"}; // Yellow sulfurous twilight
+
+            case NOBLE_GAS_MIXTURE ->
+                    new String[]{"#ccccff", "#9999cc"}; // Pale blue twilight
+        };
+    }
+
+    /**
+     * Calculate twilight intensity based on atmospheric conditions
+     */
+    private String getTwilightAlphaFormula(AtmosphereComposition atmosphere, double atmosphericDensity) {
+        return switch (atmosphere) {
+            case VACUUM ->
+                    "0"; // No twilight - no atmosphere to scatter light
+
+            case TRACE_ATMOSPHERE ->
+                    "twilightAlpha(skyAngle) * 0.1"; // Very faint twilight
+
+            case NOBLE_GAS_MIXTURE -> {
+                if (atmosphericDensity < 0.3) {
+                    yield "twilightAlpha(skyAngle) * 0.3"; // Weak twilight
+                } else {
+                    yield "twilightAlpha(skyAngle)"; // Normal twilight
+                }
+            }
+
+            default ->
+                    "twilightAlpha(skyAngle)"; // Normal atmospheric scattering
+        };
+    }
 
     /**
      * Get sky color hex code (without #)
      */
     private String getAtmosphericSkyColor(AtmosphereComposition atmosphere) {
         return switch (atmosphere) {
-            case OXYGEN_RICH -> "78A7FF";           // Earth-like blue
-            case CARBON_DIOXIDE -> "FFA500";        // Orange (Venus-like)
-            case NITROGEN_RICH -> "9370DB";         // Purple-blue
-            case METHANE -> "D2691E";               // Orange-brown (Titan-like)
-            case WATER_VAPOR_RICH -> "F5F5DC";     // Pale white (steamy)
-            case HYDROGEN_SULFIDE -> "B8860B";     // Yellow-brown (sulfurous)
-            case NOBLE_GAS_MIXTURE -> "E6E6FA";    // Pale lavender
-            case TRACE_ATMOSPHERE -> "2F2F2F";     // Dark gray (thin)
-            case VACUUM -> "000000";               // Black (space)
+            case OXYGEN_RICH -> "#78A7FF";           // Earth-like blue
+            case CARBON_DIOXIDE -> "#FFA500";        // Orange (Venus-like)
+            case NITROGEN_RICH -> "#9370DB";         // Purple-blue
+            case METHANE -> "#D2691E";               // Orange-brown (Titan-like)
+            case WATER_VAPOR_RICH -> "#F5F5DC";     // Pale white (steamy)
+            case HYDROGEN_SULFIDE -> "#B8860B";     // Yellow-brown (sulfurous)
+            case NOBLE_GAS_MIXTURE -> "#E6E6FA";    // Pale lavender
+            case TRACE_ATMOSPHERE -> "#2F2F2F";     // Dark gray (thin)
+            case VACUUM -> "#000000";               // Black (space)
         };
     }
 
@@ -391,15 +575,15 @@ public class CelestialSkyDataProvider implements DataProvider {
      */
     private String getAtmosphericFogColor(AtmosphereComposition atmosphere) {
         return switch (atmosphere) {
-            case OXYGEN_RICH -> "C0D8FF";           // Light blue
-            case CARBON_DIOXIDE -> "FFE4B5";        // Light orange
-            case NITROGEN_RICH -> "DDA0DD";         // Light purple
-            case METHANE -> "F4A460";               // Sandy brown
-            case WATER_VAPOR_RICH -> "FFFFFF";     // White (steam)
-            case HYDROGEN_SULFIDE -> "FFFF99";     // Light yellow
-            case NOBLE_GAS_MIXTURE -> "F8F8FF";    // Ghost white
-            case TRACE_ATMOSPHERE -> "696969";     // Dim gray
-            case VACUUM -> "000000";               // Very dark gray
+            case OXYGEN_RICH -> "#C0D8FF";           // Light blue
+            case CARBON_DIOXIDE -> "#FFE4B5";        // Light orange
+            case NITROGEN_RICH -> "#DDA0DD";         // Light purple
+            case METHANE -> "#F4A460";               // Sandy brown
+            case WATER_VAPOR_RICH -> "#FFFFFF";     // White (steam)
+            case HYDROGEN_SULFIDE -> "#FFFF99";     // Light yellow
+            case NOBLE_GAS_MIXTURE -> "#F8F8FF";    // Ghost white
+            case TRACE_ATMOSPHERE -> "#696969";     // Dim gray
+            case VACUUM -> "#000000";               // Very dark gray
         };
     }
 
@@ -408,49 +592,46 @@ public class CelestialSkyDataProvider implements DataProvider {
      */
     private String getAtmosphericCloudColor(AtmosphereComposition atmosphere) {
         return switch (atmosphere) {
-            case OXYGEN_RICH -> "9CC7FF";           // Medium blue
-            case CARBON_DIOXIDE -> "FFD4AA";        // Medium orange
-            case NITROGEN_RICH -> "B885DD";         // Medium purple
-            case METHANE -> "E3976F";               // Medium brown
-            case WATER_VAPOR_RICH -> "FAFAFA";     // Off-white
-            case HYDROGEN_SULFIDE -> "DDD555";     // Medium yellow
-            case NOBLE_GAS_MIXTURE -> "F2F2FD";    // Very light lavender
-            case TRACE_ATMOSPHERE -> "555555";     // Medium gray
-            case VACUUM -> "000000";               // Very dark
+            case OXYGEN_RICH -> "#9CC7FF";           // Medium blue
+            case CARBON_DIOXIDE -> "#FFD4AA";        // Medium orange
+            case NITROGEN_RICH -> "#B885DD";         // Medium purple
+            case METHANE -> "#E3976F";               // Medium brown
+            case WATER_VAPOR_RICH -> "#FAFAFA";     // Off-white
+            case HYDROGEN_SULFIDE -> "#DDD555";     // Medium yellow
+            case NOBLE_GAS_MIXTURE -> "#F2F2FD";    // Very light lavender
+            case TRACE_ATMOSPHERE -> "#555555";     // Medium gray
+            case VACUUM -> "#000000";               // Very dark
         };
     }
 
     /**
-     * Get sun RGB values as strings
+     * Get sun RGB values as strings with atmospheric filtering
      */
     private String[] getSunRGB(AtmosphereComposition atmosphere) {
         return switch (atmosphere) {
-            case OXYGEN_RICH -> new String[]{"1", "1", "1"};           // White (normal)
-            case CARBON_DIOXIDE -> new String[]{"1", "0.84", "0"};     // Golden (filtered)
-            case NITROGEN_RICH -> new String[]{"0.9", "0.9", "0.98"};  // Pale (filtered)
-            case METHANE -> new String[]{"1", "0.65", "0"};            // Orange (filtered)
-            case WATER_VAPOR_RICH -> new String[]{"1", "1", "0.88"};   // Light yellow (hazy)
-            case HYDROGEN_SULFIDE -> new String[]{"1", "1", "0.6"};    // Yellow (sulfurous)
-            case NOBLE_GAS_MIXTURE -> new String[]{"0.94", "0.97", "1"}; // Alice blue (clear)
-            case TRACE_ATMOSPHERE -> new String[]{"1", "1", "1"};      // White (no filtering)
-            case VACUUM -> new String[]{"1", "1", "1"};               // White (no atmosphere)
-        };
-    }
+            case VACUUM, TRACE_ATMOSPHERE ->
+                    new String[]{"1", "1", "1"};           // Pure white (no atmospheric filtering)
 
-    /**
-     * Get twilight RGB values as strings
-     */
-    private String[] getTwilightRGB(AtmosphereComposition atmosphere) {
-        return switch (atmosphere) {
-            case OXYGEN_RICH -> new String[]{"1", "0.5", "0.2"};       // Orange twilight
-            case CARBON_DIOXIDE -> new String[]{"1", "0.3", "0"};      // Red twilight
-            case NITROGEN_RICH -> new String[]{"0.8", "0.4", "0.9"};   // Purple twilight
-            case METHANE -> new String[]{"0.9", "0.6", "0.2"};        // Brown twilight
-            case WATER_VAPOR_RICH -> new String[]{"1", "0.9", "0.9"}; // Pink twilight
-            case HYDROGEN_SULFIDE -> new String[]{"1", "0.8", "0.4"}; // Yellow twilight
-            case NOBLE_GAS_MIXTURE -> new String[]{"0.9", "0.9", "1"}; // Pale twilight
-            case TRACE_ATMOSPHERE -> new String[]{"0.5", "0.5", "0.5"}; // Gray twilight
-            case VACUUM -> new String[]{"0", "0", "0"};               // No twilight
+            case NOBLE_GAS_MIXTURE ->
+                    new String[]{"0.98", "0.99", "1"};     // Very slight blue tint
+
+            case OXYGEN_RICH ->
+                    new String[]{"1", "1", "1"};           // White (normal)
+
+            case CARBON_DIOXIDE ->
+                    new String[]{"1", "0.84", "0"};        // Golden (filtered)
+
+            case NITROGEN_RICH ->
+                    new String[]{"0.9", "0.9", "0.98"};   // Pale (filtered)
+
+            case METHANE ->
+                    new String[]{"1", "0.65", "0"};       // Orange (filtered)
+
+            case WATER_VAPOR_RICH ->
+                    new String[]{"1", "1", "0.88"};       // Light yellow (hazy)
+
+            case HYDROGEN_SULFIDE ->
+                    new String[]{"1", "1", "0.6"};        // Yellow (sulfurous)
         };
     }
 
@@ -474,6 +655,6 @@ public class CelestialSkyDataProvider implements DataProvider {
 
     @Override
     public String getName() {
-        return "Terradyne Celestial Sky Data (Proper Celestial Format)";
+        return "Terradyne Celestial Sky Data (Fixed Twilight Format)";
     }
 }
