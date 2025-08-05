@@ -23,6 +23,7 @@ public class StarSystemModel {
 
     // === PLANETARY BODIES ===
     private final Map<String, PlanetaryBody> planets;
+    private final PlanetaryBody sun;
     private final List<String> planetOrder; // For consistent iteration
 
     /**
@@ -32,6 +33,13 @@ public class StarSystemModel {
         this.planets = new LinkedHashMap<>();
         this.planetOrder = new ArrayList<>();
         initializePlanets();
+
+        this.sun = new PlanetaryBody(
+                "Sun", "sun",
+                0, 0,                    // 0.387 AU, 88 days
+                0, 0, 0, 0,      // 7° inclination, orbital orientation
+                696000, 333000, 1.0             // 2440 km radius, 0.055 Earth masses, 0.14 albedo
+        );
 
         Terradyne.LOGGER.info("=== STAR SYSTEM MODEL INITIALIZED ===");
         Terradyne.LOGGER.info("Time scale: 1/{} (real days per MC day)", TIME_SCALE_FACTOR);
@@ -186,7 +194,7 @@ public class StarSystemModel {
      * Generate Celestial expressions with planetary rotation
      * UPDATED: Now includes sky rotation based on observer planet's rotation period
      */
-    public CelestialExpressions generateCelestialExpressions(String targetPlanetKey, String observerPlanetKey) {
+    public CelestialExpressions generatePlanetExpressions(String targetPlanetKey, String observerPlanetKey) {
         PlanetaryBody target = planets.get(targetPlanetKey);
         PlanetaryBody observer = planets.get(observerPlanetKey);
 
@@ -215,6 +223,21 @@ public class StarSystemModel {
                 positionOffset[0], positionOffset[1], "0");
     }
 
+    public CelestialExpressions generateSunExpressions(String observerPlanetKey){
+        PlanetaryBody observer = planets.get(observerPlanetKey);
+
+        String skyRotation = generateSkyRotationExpression(observerPlanetKey);
+
+        String[] positionOffset = calculateHeliocentricOffset(sun, observer, skyRotation);
+
+        String scale = generateDynamicScale(sun, observer);
+        String distance = generateDynamicDistance(sun, observer);
+        String alpha = generateDistanceBasedAlpha(sun, observer);
+
+        return new CelestialExpressions(sun, "0", "0", "0", "10", distance, alpha,
+                positionOffset[0], positionOffset[1], "0");
+    }
+
     /**
      * Generate complete Celestial skybox data for a planet using offset-based approach
      * This is the final output for CelestialSkyDataProvider integration
@@ -224,7 +247,7 @@ public class StarSystemModel {
 
         for (PlanetaryBody planet : planets.values()) {
             if (!planet.getPlanetKey().equals(observerPlanetKey)) {
-                CelestialExpressions expressions = generateCelestialExpressions(planet.getPlanetKey(), observerPlanetKey);
+                CelestialExpressions expressions = generatePlanetExpressions(planet.getPlanetKey(), observerPlanetKey);
                 if (expressions != null) {
                     skybox.put("planet_" + planet.getPlanetKey(), expressions);
                 }
@@ -270,7 +293,6 @@ public class StarSystemModel {
     private String[] calculateHeliocentricOffset(PlanetaryBody target, PlanetaryBody observer, String skyRotation) {
         double observerSpeed = observer.getOrbitalSpeedCoefficient();
         double observerPhase = observer.getMeanAnomalyAtEpoch();
-        double observerDistance = observer.getSemiMajorAxisAU();
 
         // Observer's orbital position
         String observerOrbitalAngle = String.format("worldTime * %.8f + %.2f", observerSpeed, observerPhase);

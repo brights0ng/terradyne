@@ -182,8 +182,10 @@ public class CelestialSkyDataProvider implements DataProvider {
         // Get StarSystemModel instance
         StarSystemModel starSystem = StarSystemModel.getInstance();
 
+        StarSystemModel.CelestialExpressions sunExpressions = starSystem.generateSunExpressions(planetKey);
+
         // Create all basic objects (sun, moon, stars, twilight)
-        JsonObject sun = createSunObject(config, planetKey);
+        JsonObject sun = createSunObject(sunExpressions, config, planetKey);
         JsonObject moon = createMoonObject(config);
         JsonObject stars = createStarsObject(config);
         JsonObject twilight = createTwilightObject(config);
@@ -297,34 +299,6 @@ public class CelestialSkyDataProvider implements DataProvider {
     }
 
     /**
-     * Generate dynamic scale expression based on orbital distance
-     */
-    private String generatePlanetScale(PlanetaryBody planet, String observerPlanetKey, StarSystemModel starSystem) {
-        // Base scale from planet physical size
-        double baseScale = (planet.getRadiusKm() / 6371.0) * StarSystemModel.getSizeScaleFactor();
-        return String.format("%.3f", Math.max(0.1, baseScale));
-    }
-
-    /**
-     * Generate distance expression (simplified for now)
-     */
-    private String generatePlanetDistance(PlanetaryBody planet, String observerPlanetKey, StarSystemModel starSystem) {
-        PlanetaryBody observer = starSystem.getPlanet(observerPlanetKey);
-        double avgDistance = Math.abs(planet.getSemiMajorAxisAU() - observer.getSemiMajorAxisAU());
-        return String.format("%.1f", Math.max(100.0, avgDistance * 150.0));
-    }
-
-    /**
-     * Generate alpha (visibility) expression based on distance and brightness
-     */
-    private String generatePlanetAlpha(PlanetaryBody planet, String observerPlanetKey) {
-        // For now, make planets always visible but dimmer during day
-        double brightness = planet.getAlbedo() * 2.0; // Scale up brightness
-        return String.format("max(%.2f, (1 - dayLight * 0.7)) * (1 - rainAlpha)",
-                Math.min(1.0, brightness));
-    }
-
-    /**
      * Get planet RGB colors based on real planetary appearance
      */
     private String[] getPlanetRGB(PlanetaryBody planet) {
@@ -363,29 +337,23 @@ public class CelestialSkyDataProvider implements DataProvider {
     /**
      * FIXED: Create sun object with correct day/night timing
      */
-    private JsonObject createSunObject(PlanetConfig config, String observerPlanetKey) {
+    private JsonObject createSunObject(StarSystemModel.CelestialExpressions expressions, PlanetConfig config, String observerPlanetKey) {
         JsonObject sun = new JsonObject();
 
         sun.addProperty("texture", "minecraft:textures/environment/sun.png");
 
         // Display settings
         JsonObject display = new JsonObject();
-        double starDistance = config.getDistanceFromStar();
-        double sunScale = Math.max(10.0, Math.min(40.0, 6000.0 / starDistance));
-        display.addProperty("scale", String.valueOf(sunScale));
-        display.addProperty("pos_x", "0");
-        display.addProperty("pos_y", "0");
-        display.addProperty("pos_z", "0");
-        display.addProperty("distance", "200");
+        display.addProperty("scale", expressions.scale);
+        display.addProperty("pos_x", expressions.posX);
+        display.addProperty("pos_y", expressions.posY);
+        display.addProperty("pos_z", expressions.posZ);
+        display.addProperty("distance", expressions.distance);
         sun.add("display", display);
 
         // FIXED: Adjust rotation so sun rises in morning, not at night
         JsonObject rotation = new JsonObject();
-        StarSystemModel starSystem = StarSystemModel.getInstance();
-        String skyRotation = starSystem.generateSkyRotationExpression(observerPlanetKey);
-
-        String sunRotation = String.format("skyAngle + 90 + (%s)", skyRotation);
-        rotation.addProperty("degrees_x", sunRotation);
+        rotation.addProperty("degrees_x", "0");
         rotation.addProperty("degrees_y", "0");
         rotation.addProperty("degrees_z", "0");
         rotation.addProperty("base_degrees_x", "-90");
