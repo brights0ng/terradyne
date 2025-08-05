@@ -11,8 +11,11 @@ import net.minecraft.util.Identifier;
 import net.starlight.terradyne.datagen.HardcodedPlanets;
 import net.starlight.terradyne.planet.physics.PlanetConfig;
 import net.starlight.terradyne.planet.physics.AtmosphereComposition;
+import net.starlight.terradyne.starsystem.PlanetaryBody;
+import net.starlight.terradyne.starsystem.StarSystemModel;
 
 import java.nio.file.Path;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
 /**
@@ -75,14 +78,15 @@ public class CelestialSkyDataProvider implements DataProvider {
         }
     }
 
-    /**
-     * Generate individual sky files for each planet dimension
-     */
     private void generatePlanetSkyFiles(DataWriter writer) {
-        System.out.println("=== GENERATING PLANET SKY FILES ===");
+        System.out.println("=== GENERATING PLANET SKY FILES WITH OFFSET-BASED ORBITAL MECHANICS ===");
 
         var planets = HardcodedPlanets.getAllPlanets();
-        System.out.println("Generating sky files for " + planets.size() + " planets");
+        StarSystemModel starSystem = StarSystemModel.getInstance();
+
+        System.out.println("Generating sky files for " + planets.size() + " planets with offset-based orbital mechanics");
+        System.out.println("StarSystem status: " + starSystem.getSystemStatus());
+        System.out.println("Approach: Geocentric rotation + Heliocentric position offsets");
 
         int successCount = 0;
         int totalCount = planets.size();
@@ -91,75 +95,76 @@ public class CelestialSkyDataProvider implements DataProvider {
             String planetKey = entry.getKey();
             PlanetConfig config = entry.getValue();
 
-            System.out.println("Processing sky for planet: " + planetKey);
+            System.out.println("Processing sky for planet: " + planetKey + " (" + config.getPlanetName() + ")");
 
             try {
-                // Create sky.json for this planet
-                JsonObject skyJson = createPlanetSkyJson(config);
+                // Create sky.json with offset-based orbital mechanics
+                JsonObject skyJson = createPlanetSkyJson(config, planetKey, starSystem);
 
-                // FIXED: Write to assets/celestial/sky/[planetKey]/sky.json
+                // Write sky.json
                 Identifier skyId = new Identifier("celestial", "sky/" + planetKey + "/sky");
                 Path skyPath = output.getResolver(net.minecraft.data.DataOutput.OutputType.RESOURCE_PACK, "")
                         .resolveJson(skyId);
-
                 DataProvider.writeToPath(writer, skyJson, skyPath);
 
-                // Generate celestial objects in objects/ folder
+                // Generate all celestial objects (basic + offset-based orbital planets)
                 generatePlanetObjects(writer, planetKey, config);
 
                 successCount++;
-                System.out.println("✅ Successfully generated sky for: " + planetKey + " (" + successCount + "/" + totalCount + ")");
+                System.out.println("✅ Successfully generated offset-based orbital sky for: " + planetKey + " (" + successCount + "/" + totalCount + ")");
 
             } catch (Exception e) {
-                System.err.println("❌ Failed to generate sky for planet: " + planetKey);
+                System.err.println("❌ Failed to generate offset-based orbital sky for planet: " + planetKey);
                 e.printStackTrace();
             }
         }
 
-        System.out.println("=== CELESTIAL SKY GENERATION COMPLETE ===");
+        System.out.println("=== OFFSET-BASED ORBITAL MECHANICS SKY GENERATION COMPLETE ===");
         System.out.println("Successfully generated " + successCount + " out of " + totalCount + " planet skies");
+        System.out.println("Each planet now has realistic orbital mechanics using:");
+        System.out.println("  - Geocentric rotation for basic orbital motion");
+        System.out.println("  - Heliocentric position offsets for correct solar system positioning");
+        System.out.println("  - Only basic Celestial functions (no inverse trig)");
     }
 
-    /**
-     * Create Celestial sky.json with proper format
-     */
-    private JsonObject createPlanetSkyJson(PlanetConfig config) {
+    private JsonObject createPlanetSkyJson(PlanetConfig config, String observerPlanetKey, StarSystemModel starSystem) {
         JsonObject sky = new JsonObject();
 
-        // Sky objects array
+        // Sky objects array - now includes all planets with orbital mechanics!
         JsonArray skyObjects = new JsonArray();
         skyObjects.add("twilight");
         skyObjects.add("moon");
         skyObjects.add("sun");
         skyObjects.add("stars");
+
+        // Add all planets visible from this observer (using StarSystemModel)
+        Map<String, StarSystemModel.CelestialExpressions> visiblePlanets = starSystem.generateCompleteSkybox(observerPlanetKey);
+        for (String planetObjectName : visiblePlanets.keySet()) {
+            skyObjects.add(planetObjectName); // e.g., "planet_mars", "planet_venus"
+        }
+
         sky.add("sky_objects", skyObjects);
 
-        // Environment settings
+        // Rest of environment settings...
         JsonObject environment = new JsonObject();
-
-        // Fog color
         JsonObject fogColor = new JsonObject();
         fogColor.addProperty("base_color", getAtmosphericFogColor(config.getAtmosphereComposition()));
         environment.add("fog_color", fogColor);
 
-        // Sky color
         JsonObject skyColor = new JsonObject();
         skyColor.addProperty("base_color", getAtmosphericSkyColor(config.getAtmosphereComposition()));
         environment.add("sky_color", skyColor);
 
-        // Clouds
         JsonObject clouds = new JsonObject();
         clouds.addProperty("height", "128");
         clouds.addProperty("color", getAtmosphericCloudColor(config.getAtmosphereComposition()));
         environment.add("clouds", clouds);
 
-        // Fog settings
         JsonObject fog = new JsonObject();
         fog.addProperty("fog_start", String.valueOf(calculateFogStart(config.getAtmosphericDensity())));
         fog.addProperty("fog_end", String.valueOf(calculateFogEnd(config.getAtmosphericDensity())));
         environment.add("fog", fog);
 
-        // Required twilight alpha (deprecated but required)
         environment.addProperty("NOTE", "Do not change this value!");
         environment.addProperty("twilight_alpha", "0");
 
@@ -169,22 +174,168 @@ public class CelestialSkyDataProvider implements DataProvider {
     }
 
     /**
-     * Generate celestial objects with sequential writing to avoid race conditions
+     * Generate planet objects using StarSystemModel orbital mechanics
      */
     private void generatePlanetObjects(DataWriter writer, String planetKey, PlanetConfig config) {
         System.out.println("  → Generating objects for " + planetKey + "...");
 
-        // Create all objects first (separate from I/O)
-        JsonObject sun = createSunObject(config);
+        // Get StarSystemModel instance
+        StarSystemModel starSystem = StarSystemModel.getInstance();
+
+        // Create all basic objects (sun, moon, stars, twilight)
+        JsonObject sun = createSunObject(config, planetKey);
         JsonObject moon = createMoonObject(config);
         JsonObject stars = createStarsObject(config);
         JsonObject twilight = createTwilightObject(config);
 
-        // Write sequentially with small delays
+        // Write basic objects
         writeObjectWithDelay(writer, sun, planetKey, "sun");
         writeObjectWithDelay(writer, moon, planetKey, "moon");
         writeObjectWithDelay(writer, stars, planetKey, "stars");
         writeObjectWithDelay(writer, twilight, planetKey, "twilight");
+
+        // NEW: Generate realistic orbital planet objects
+        generatePlanetObjects(writer, planetKey, starSystem);
+    }
+
+    /**
+     * Generate planet objects using StarSystemModel orbital mechanics
+     * UPDATED: Now uses offset-based heliocentric positioning approach
+     */
+    private void generatePlanetObjects(DataWriter writer, String observerPlanetKey, StarSystemModel starSystem) {
+        System.out.println("  → Generating offset-based orbital planet objects for " + observerPlanetKey + "...");
+
+        // Get complete skybox data from StarSystemModel (now with position offsets)
+        Map<String, StarSystemModel.CelestialExpressions> skyboxData = starSystem.generateCompleteSkybox(observerPlanetKey);
+
+        System.out.println("    → Found " + skyboxData.size() + " planets visible from " + observerPlanetKey);
+        System.out.println("    → Using offset-based heliocentric positioning approach");
+
+        for (var entry : skyboxData.entrySet()) {
+            String objectName = entry.getKey(); // e.g., "planet_mars"
+            StarSystemModel.CelestialExpressions expressions = entry.getValue();
+
+            try {
+                // Create planet object with offset-based orbital mechanics
+                JsonObject planetObject = createRealisticPlanetObject(expressions, observerPlanetKey);
+
+                // Write planet object file
+                Identifier objectId = new Identifier("celestial", "sky/" + observerPlanetKey + "/objects/" + objectName);
+                Path objectPath = output.getResolver(net.minecraft.data.DataOutput.OutputType.RESOURCE_PACK, "")
+                        .resolveJson(objectId);
+
+                DataProvider.writeToPath(writer, planetObject, objectPath);
+
+                System.out.println("    → Generated " + objectName + ".json with offset-based mechanics for " + observerPlanetKey);
+                Thread.sleep(10); // Prevent race conditions
+
+            } catch (Exception e) {
+                System.err.println("    ❌ Failed to generate offset-based planet object: " + expressions.planet.getName());
+                e.printStackTrace();
+            }
+        }
+    }
+
+    /**
+     * Create a planet object with realistic orbital mechanics using offset-based positioning
+     * UPDATED: Now uses heliocentric position offsets for correct planetary motion
+     */
+    private JsonObject createRealisticPlanetObject(StarSystemModel.CelestialExpressions expressions, String observerPlanetKey) {
+        JsonObject planetObj = new JsonObject();
+
+        PlanetaryBody planet = expressions.planet;
+
+        // Use planet-specific texture
+        planetObj.addProperty("texture", "minecraft:textures/environment/moon_phases.png");
+
+        // Display settings with heliocentric position offsets
+        JsonObject display = new JsonObject();
+        display.addProperty("scale", expressions.scale);           // Dynamic scale based on distance
+        display.addProperty("pos_x", expressions.posX);            // NEW: Heliocentric X offset
+        display.addProperty("pos_y", expressions.posY);            // NEW: Heliocentric Y offset
+        display.addProperty("pos_z", expressions.posZ);            // NEW: Z offset (always "0" for now)
+        display.addProperty("distance", expressions.distance);     // Dynamic distance
+        planetObj.add("display", display);
+
+        // UPDATED: Simplified rotation (geocentric base + heliocentric offset via position)
+        JsonObject rotation = new JsonObject();
+        rotation.addProperty("degrees_x", expressions.rotationX);  // Geocentric rotation
+        rotation.addProperty("degrees_y", expressions.rotationY);  // Always "0"
+        rotation.addProperty("degrees_z", expressions.rotationZ);  // Always "0" (no inclinations yet)
+        rotation.addProperty("base_degrees_x", "-90");
+        rotation.addProperty("base_degrees_z", "-90");
+        planetObj.add("rotation", rotation);
+
+        // Properties with realistic visibility
+        JsonObject properties = new JsonObject();
+        properties.addProperty("is_solid", false);
+        properties.addProperty("blend", true);
+        properties.addProperty("alpha", expressions.alpha);       // Distance and daylight-based visibility
+        properties.addProperty("has_moon_phases", true);
+        properties.addProperty("moon_phase", "moonPhase");
+
+
+        // Planet color based on real planetary appearance
+        JsonObject color = new JsonObject();
+        String[] planetRGB = getPlanetRGB(planet);
+        color.addProperty("red", planetRGB[0]);
+        color.addProperty("green", planetRGB[1]);
+        color.addProperty("blue", planetRGB[2]);
+        properties.add("color", color);
+
+        planetObj.add("properties", properties);
+
+        // Add debug info for orbital mechanics
+        planetObj.addProperty("_debug_planet", planet.getName());
+        planetObj.addProperty("_debug_orbital_distance", String.format("%.3f AU", planet.getSemiMajorAxisAU()));
+        planetObj.addProperty("_debug_orbital_period", String.format("%.2f MC days", planet.getOrbitalPeriodMCDays()));
+        planetObj.addProperty("_debug_approach", "offset_based_heliocentric");
+        planetObj.addProperty("_debug_rotation_type", "geocentric_base");
+        planetObj.addProperty("_debug_positioning", "heliocentric_offsets");
+
+        return planetObj;
+    }
+
+    /**
+     * Generate dynamic scale expression based on orbital distance
+     */
+    private String generatePlanetScale(PlanetaryBody planet, String observerPlanetKey, StarSystemModel starSystem) {
+        // Base scale from planet physical size
+        double baseScale = (planet.getRadiusKm() / 6371.0) * StarSystemModel.getSizeScaleFactor();
+        return String.format("%.3f", Math.max(0.1, baseScale));
+    }
+
+    /**
+     * Generate distance expression (simplified for now)
+     */
+    private String generatePlanetDistance(PlanetaryBody planet, String observerPlanetKey, StarSystemModel starSystem) {
+        PlanetaryBody observer = starSystem.getPlanet(observerPlanetKey);
+        double avgDistance = Math.abs(planet.getSemiMajorAxisAU() - observer.getSemiMajorAxisAU());
+        return String.format("%.1f", Math.max(100.0, avgDistance * 150.0));
+    }
+
+    /**
+     * Generate alpha (visibility) expression based on distance and brightness
+     */
+    private String generatePlanetAlpha(PlanetaryBody planet, String observerPlanetKey) {
+        // For now, make planets always visible but dimmer during day
+        double brightness = planet.getAlbedo() * 2.0; // Scale up brightness
+        return String.format("max(%.2f, (1 - dayLight * 0.7)) * (1 - rainAlpha)",
+                Math.min(1.0, brightness));
+    }
+
+    /**
+     * Get planet RGB colors based on real planetary appearance
+     */
+    private String[] getPlanetRGB(PlanetaryBody planet) {
+        return switch (planet.getPlanetKey()) {
+            case "mercury" -> new String[]{"0.7", "0.7", "0.7"};     // Gray
+            case "venus" -> new String[]{"1.0", "0.9", "0.7"};       // Bright yellow-white
+            case "earth" -> new String[]{"0.4", "0.7", "1.0"};       // Blue-white
+            case "mars" -> new String[]{"1.0", "0.5", "0.3"};        // Red-orange
+            case "pluto" -> new String[]{"0.8", "0.7", "0.6"};       // Brownish
+            default -> new String[]{"1.0", "1.0", "1.0"};            // White fallback
+        };
     }
 
     private void writeObjectWithDelay(DataWriter writer, JsonObject object, String planetKey, String objectName) {
@@ -212,7 +363,7 @@ public class CelestialSkyDataProvider implements DataProvider {
     /**
      * FIXED: Create sun object with correct day/night timing
      */
-    private JsonObject createSunObject(PlanetConfig config) {
+    private JsonObject createSunObject(PlanetConfig config, String observerPlanetKey) {
         JsonObject sun = new JsonObject();
 
         sun.addProperty("texture", "minecraft:textures/environment/sun.png");
@@ -230,7 +381,11 @@ public class CelestialSkyDataProvider implements DataProvider {
 
         // FIXED: Adjust rotation so sun rises in morning, not at night
         JsonObject rotation = new JsonObject();
-        rotation.addProperty("degrees_x", "skyAngle + 90"); // Add 180 degrees to flip timing
+        StarSystemModel starSystem = StarSystemModel.getInstance();
+        String skyRotation = starSystem.generateSkyRotationExpression(observerPlanetKey);
+
+        String sunRotation = String.format("skyAngle + 90 + (%s)", skyRotation);
+        rotation.addProperty("degrees_x", sunRotation);
         rotation.addProperty("degrees_y", "0");
         rotation.addProperty("degrees_z", "0");
         rotation.addProperty("base_degrees_x", "-90");
@@ -288,7 +443,7 @@ public class CelestialSkyDataProvider implements DataProvider {
         // Properties
         JsonObject properties = new JsonObject();
         properties.addProperty("has_moon_phases", true);
-        properties.addProperty("moon_phase", "moonPhase");
+        properties.addProperty("moon_phase", "0");
         properties.addProperty("is_solid", false);
         properties.addProperty("blend", true);
 

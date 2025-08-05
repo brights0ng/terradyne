@@ -1,0 +1,11 @@
+{
+  "type": "minecraft:overworld",
+  "generator": {
+    "type": "terradyne:universal",
+    "biome_source": {
+      "type": "terradyne:physics_based",
+      "planet_name": "mars"
+    },
+    "planet_name": "mars"
+  }
+}
