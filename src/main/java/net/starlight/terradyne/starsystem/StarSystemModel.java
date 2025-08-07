@@ -190,52 +190,44 @@ public class StarSystemModel {
 
     // === CELESTIAL INTEGRATION ===
 
-    /**
-     * Generate Celestial expressions with planetary rotation
-     * UPDATED: Now includes sky rotation based on observer planet's rotation period
-     */
+    // CORRECTED: Calculate solar system center - ONLY sky rotation, no orbital motion
+    private String[] calculateSharedSolarSystemCenter(String observerPlanetKey) {
+        String skyRotation = generateSkyRotationExpression(observerPlanetKey);
+
+        // Sun's position in sky = just the sky rotation (day/night cycle)
+        // No orbital motion component for the sun
+        String sunAngleInSky = skyRotation;
+
+        // Very small offset - just to establish the center point
+        String centerX = String.format("%.6f * cos(radians(%s))", 0.001, sunAngleInSky);
+        String centerY = String.format("%.6f * sin(radians(%s))", 0.001, sunAngleInSky);
+
+        return new String[]{centerX, centerY, "0"};
+    }
+
+    // CORRECTED: Sun expressions - normal distance, only sky rotation
+    public CelestialExpressions generateSunExpressions(String observerPlanetKey){
+        String[] sharedCenter = calculateSharedSolarSystemCenter(observerPlanetKey);
+
+        // Sun gets normal distance (like vanilla sun) and no additional rotation
+        return new CelestialExpressions(sun, "0", "0", "0", "30", "100", "1 - rainAlpha",
+                sharedCenter[0], sharedCenter[1], sharedCenter[2]);
+    }
+
+    // CORRECTED: Planet expressions - same center + orbital motion + orbital distance
     public CelestialExpressions generatePlanetExpressions(String targetPlanetKey, String observerPlanetKey) {
         PlanetaryBody target = planets.get(targetPlanetKey);
         PlanetaryBody observer = planets.get(observerPlanetKey);
 
-        if (target == null || observer == null) {
-            return null;
-        }
+        String[] sharedCenter = calculateSharedSolarSystemCenter(observerPlanetKey);  // Same tiny center as sun
 
-        // Get sky rotation component
-        String skyRotation = generateSkyRotationExpression(observerPlanetKey);
+        String orbitalRotation = generateGeocentricRotation(target, observer);  // Orbital motion around sun
+        String orbitalDistance = String.format("%.1f", Math.max(50.0, target.getSemiMajorAxisAU() * 30.0));  // Distance from sun
 
-        // STEP 1: Geocentric orbital motion
-        String baseRotationX = generateGeocentricRotation(target, observer);
-
-        // STEP 2: Add sky rotation to orbital motion
-        String rotationX = String.format("(%s) + (%s)", baseRotationX, skyRotation);
-
-        // STEP 3: Position offset to sun's location
-        String[] positionOffset = calculateHeliocentricOffset(target, observer, skyRotation);
-
-        // STEP 4: Other properties
-        String scale = generateDynamicScale(target, observer);
-        String distance = generateDynamicDistance(target, observer);
-        String alpha = generateDistanceBasedAlpha(target, observer);
-
-        return new CelestialExpressions(target, rotationX, "0", "0", scale, distance, alpha,
-                positionOffset[0], positionOffset[1], "0");
-    }
-
-    public CelestialExpressions generateSunExpressions(String observerPlanetKey){
-        PlanetaryBody observer = planets.get(observerPlanetKey);
-
-        String skyRotation = generateSkyRotationExpression(observerPlanetKey);
-
-        String[] positionOffset = calculateHeliocentricOffset(sun, observer, skyRotation);
-
-        String scale = generateDynamicScale(sun, observer);
-        String distance = generateDynamicDistance(sun, observer);
-        String alpha = generateDistanceBasedAlpha(sun, observer);
-
-        return new CelestialExpressions(sun, "0", "0", "0", "10", distance, alpha,
-                positionOffset[0], positionOffset[1], "0");
+        return new CelestialExpressions(target, orbitalRotation, "0", "0",
+                generateDynamicScale(target, observer), orbitalDistance,
+                generateDistanceBasedAlpha(target, observer),
+                sharedCenter[0], sharedCenter[1], sharedCenter[2]);
     }
 
     /**
