@@ -1,0 +1,28 @@
+{
+  "name": "Solar System",
+  "star": {
+    "object": "terradyne:sol",
+    "orbiting": [
+      {
+        "object": "terradyne:mercury"
+      },
+      {
+        "object": "terradyne:venus"
+      },
+      {
+        "object": "terradyne:earth",
+        "orbiting": [
+          {
+            "object": "terradyne:moon"
+          }
+        ]
+      },
+      {
+        "object": "terradyne:mars"
+      },
+      {
+        "object": "terradyne:pluto"
+      }
+    ]
+  }
+}

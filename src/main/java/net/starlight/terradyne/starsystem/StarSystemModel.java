@@ -1,511 +1,339 @@
 package net.starlight.terradyne.starsystem;
 
-import net.starlight.terradyne.Terradyne;
-import net.starlight.terradyne.datagen.HardcodedPlanets;
+import net.minecraft.util.Identifier;
 import net.starlight.terradyne.planet.physics.PlanetConfig;
+import net.starlight.terradyne.planet.physics.PlanetModel;
 
-import java.util.*;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
- * Singleton model of our star system containing all planetary bodies
- * Provides orbital mechanics calculations for realistic planet positioning in Celestial skyboxes
- * Uses real astronomical data scaled for Minecraft gameplay
+ * Complete star system model with physics calculations
+ * Built from StarSystemConfig and loaded celestial objects
  */
 public class StarSystemModel {
-
-    private static StarSystemModel INSTANCE;
-
-    // === CONFIGURATION ===
-    private static final double TIME_SCALE_FACTOR = 1000000.0;      // 1/100 real time (100 real days = 1 MC day)
-    private static final double SIZE_SCALE_FACTOR = 2000.0;      // 100x larger apparent size for visibility
-    private static final double BRIGHTNESS_THRESHOLD = 0.001;   // Minimum brightness to be visible
-    private static final double MIN_APPARENT_SIZE = 0.1;        // Minimum apparent size in degrees
-
-    // === PLANETARY BODIES ===
-    private final Map<String, PlanetaryBody> planets;
-    private final PlanetaryBody sun;
-    private final List<String> planetOrder; // For consistent iteration
-
+    
+    // === SCALE FACTORS FOR CELESTIAL RENDERING ===
     /**
-     * Private constructor - use getInstance()
+     * TIME_SCALE_FACTOR controls how fast in-game time maps to orbital motion.
+     * 1.0 = Perfect realism (24 real hours per MC day)
+     * 72.0 = Minecraft default (20 real minutes per MC day)
      */
-    private StarSystemModel() {
-        this.planets = new LinkedHashMap<>();
-        this.planetOrder = new ArrayList<>();
-        initializePlanets();
+    public static final double TIME_SCALE_FACTOR = 72.0;
+    
+    /**
+     * SIZE_SCALE_FACTOR controls visual size of celestial objects in the sky.
+     * 1.0 = Perfect realism (barely visible)
+     * 100.0 = 100x scale for visibility
+     */
+    public static final double SIZE_SCALE_FACTOR = 1000.0;
+    
+    // Physics constants
+    private static final double AU_TO_KM = 149597870.7; // 1 AU in kilometers
+    private static final double TICKS_PER_DAY = 24000.0; // Minecraft day length
+    private static final double SECONDS_PER_TICK = 0.05; // Minecraft tick = 50ms
 
-        this.sun = new PlanetaryBody(
-                "Sun", "sun",
-                0, 0,                    // 0.387 AU, 88 days
-                0, 0, 0, 0,      // 7° inclination, orbital orientation
-                696000, 333000, 1.0             // 2440 km radius, 0.055 Earth masses, 0.14 albedo
-        );
+    private final Identifier identifier;
+    private final String name;
+    private final StarSystemConfig.HierarchyNode rootStar;
+    private final Map<Identifier, CelestialObject> objects;
 
-        Terradyne.LOGGER.info("=== STAR SYSTEM MODEL INITIALIZED ===");
-        Terradyne.LOGGER.info("Time scale: 1/{} (real days per MC day)", TIME_SCALE_FACTOR);
-        Terradyne.LOGGER.info("Size scale: {}x apparent size", SIZE_SCALE_FACTOR);
-        Terradyne.LOGGER.info("Planets: {}", planetOrder);
-        logOrbitalSummary();
+    public StarSystemModel(Identifier identifier, String name,
+                          StarSystemConfig.HierarchyNode rootStar,
+                          Map<Identifier, CelestialObject> objects) {
+        this.identifier = identifier;
+        this.name = name;
+        this.rootStar = rootStar;
+        this.objects = objects;
+    }
+
+    public Identifier getIdentifier() {
+        return identifier;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public StarSystemConfig.HierarchyNode getRootStar() {
+        return rootStar;
+    }
+
+    public Map<Identifier, CelestialObject> getObjects() {
+        return objects;
+    }
+
+    public CelestialObject getObject(Identifier objectId) {
+        return objects.get(objectId);
     }
 
     /**
-     * Get singleton instance
+     * Get the root star object
      */
-    public static StarSystemModel getInstance() {
-        if (INSTANCE == null) {
-            INSTANCE = new StarSystemModel();
+    public CelestialObject getStar() {
+        return objects.get(rootStar.objectId);
+    }
+    
+    // === CELESTIAL SKY EQUATION GENERATION ===
+    
+    /**
+     * Generates the rotation equation for the entire skybox from an observer's perspective.
+     * This rotates all celestial objects together to simulate the observer planet's rotation.
+     * 
+     * @param observerId The observer planet's identifier
+     * @return Equation string for degrees rotation (e.g., "(worldTime / 1000) * 360")
+     */
+    public String generateSkyRotationEquation(Identifier observerId) {
+        CelestialObject observer = objects.get(observerId);
+        if (observer == null || observer.planetConfig == null) {
+            return "0"; // No rotation if observer not found
         }
-        return INSTANCE;
+        
+        double rotationPeriod = observer.planetConfig.getRotationPeriod(); // In MC days
+        if (rotationPeriod <= 0) {
+            return "0"; // No rotation if period is invalid
+        }
+        
+        // Calculate ticks per full rotation, accounting for TIME_SCALE_FACTOR
+        double ticksPerRotation = rotationPeriod * TICKS_PER_DAY;
+        
+        // Generate equation: (worldTime / ticksPerRotation) * 360
+        // This gives us degrees of rotation based on current world time
+        return String.format("(worldTime / %.2f) * 360", ticksPerRotation);
     }
 
     /**
-     * Initialize all planetary bodies with real astronomical data
+     * Generates position equations for a target object as seen from an observer.
+     * Returns three equation strings for X, Y, Z coordinates in 3D space.
+     *
+     * @param observerId The observer planet's identifier
+     * @param targetId The target object's identifier
+     * @return Array of equation strings [posX, posY, posZ]
      */
-    private void initializePlanets() {
-        // Using real astronomical data with varied orbital orientations for realism
+    public String[] generatePositionEquations(Identifier observerId, Identifier targetId) {
+        CelestialObject observer = objects.get(observerId);
+        CelestialObject target = objects.get(targetId);
 
-        // MERCURY - Closest, fastest orbit
-        addPlanet(new PlanetaryBody(
-                "Mercury", "mercury",
-                0.387, 88,                    // 0.387 AU, 88 days
-                7.0, 48.3, 29.1, 174.8,      // 7° inclination, orbital orientation
-                2440, 0.055, 0.14             // 2440 km radius, 0.055 Earth masses, 0.14 albedo
-        ));
-
-        // VENUS - Hot, backwards rotation (we're not modeling rotation yet)
-        addPlanet(new PlanetaryBody(
-                "Venus", "venus",
-                0.723, 225,                   // 0.723 AU, 225 days
-                3.4, 76.7, 54.9, 50.1,       // 3.4° inclination, orbital orientation
-                6052, 0.815, 0.90             // 6052 km radius, 0.815 Earth masses, 0.90 albedo (very bright!)
-        ));
-
-        // EARTH - Our reference planet
-        addPlanet(new PlanetaryBody(
-                "Earth", "earth",
-                1.0, 365,                     // 1.0 AU, 365 days (reference)
-                0.0, 0.0, 102.9, 100.5,      // 0° inclination (reference plane), orbital orientation
-                6371, 1.0, 0.37               // 6371 km radius, 1.0 Earth masses, 0.37 albedo
-        ));
-
-        // MARS - The red planet
-        addPlanet(new PlanetaryBody(
-                "Mars", "mars",
-                1.524, 687,                   // 1.524 AU, 687 days
-                1.9, 49.6, 286.5, 19.4,      // 1.9° inclination, orbital orientation
-                3390, 0.107, 0.25             // 3390 km radius, 0.107 Earth masses, 0.25 albedo
-        ));
-
-        // PLUTO - Far out dwarf planet (keeping it for the cool factor)
-        addPlanet(new PlanetaryBody(
-                "Pluto", "pluto",
-                39.5, 90560,                  // 39.5 AU, 90560 days (248 years!)
-                17.2, 110.3, 113.8, 14.5,    // 17.2° inclination (highly inclined), orbital orientation
-                1188, 0.00218, 0.49           // 1188 km radius, 0.00218 Earth masses, 0.49 albedo
-        ));
-    }
-
-    /**
-     * Add a planet to the system
-     */
-    private void addPlanet(PlanetaryBody planet) {
-        planets.put(planet.getPlanetKey(), planet);
-        planetOrder.add(planet.getPlanetKey());
-    }
-
-    // === ORBITAL MECHANICS ===
-
-    /**
-     * Get all visible planets from a given observer planet
-     * @param observerPlanetKey The planet the observer is on
-     * @param worldTimeTicks Current world time in ticks
-     * @return List of visible planets with visibility data
-     */
-    public List<VisiblePlanet> getVisiblePlanets(String observerPlanetKey, long worldTimeTicks) {
-        PlanetaryBody observer = planets.get(observerPlanetKey);
-        if (observer == null) {
-            Terradyne.LOGGER.warn("Observer planet not found: {}", observerPlanetKey);
-            return Collections.emptyList();
+        if (observer == null || target == null) {
+            return new String[]{"0", "0", "0"};
         }
 
-        List<VisiblePlanet> visiblePlanets = new ArrayList<>();
+        // Get orbital data for both objects
+        OrbitalData observerOrbit = observer.orbitalData;
+        OrbitalData targetOrbit = target.orbitalData;
 
-        for (PlanetaryBody planet : planets.values()) {
-            // Skip the observer planet itself
-            if (planet.getPlanetKey().equals(observerPlanetKey)) {
-                continue;
-            }
-
-            // Calculate visibility
-            double apparentSize = planet.calculateApparentSize(observer, worldTimeTicks, SIZE_SCALE_FACTOR);
-            double brightness = planet.calculateApparentBrightness(observer, worldTimeTicks);
-            double distance = planet.calculateDistanceTo(observer, worldTimeTicks);
-
-            // Check if planet is visible
-            if (apparentSize >= MIN_APPARENT_SIZE && brightness >= BRIGHTNESS_THRESHOLD) {
-                double[] observerPos = observer.calculateOrbitalPosition(worldTimeTicks);
-                double[] planetPos = planet.calculateOrbitalPosition(worldTimeTicks);
-
-                visiblePlanets.add(new VisiblePlanet(
-                        planet, apparentSize, brightness, distance,
-                        observerPos, planetPos
-                ));
-            }
+        if (observerOrbit == null || targetOrbit == null) {
+            return new String[]{"0", "0", "0"};
         }
 
-        // Sort by brightness (brightest first)
-        visiblePlanets.sort((a, b) -> Double.compare(b.brightness, a.brightness));
-
-        return visiblePlanets;
-    }
-
-    /**
-     * Get a specific planet by key
-     */
-    public PlanetaryBody getPlanet(String planetKey) {
-        return planets.get(planetKey);
-    }
-
-    /**
-     * Get all planets
-     */
-    public Collection<PlanetaryBody> getAllPlanets() {
-        return planets.values();
-    }
-
-    /**
-     * Get planet keys in order
-     */
-    public List<String> getPlanetOrder() {
-        return new ArrayList<>(planetOrder);
-    }
-
-
-    /**
-     * Get the number of planets in the system
-     */
-    public int getPlanetCount() {
-        return planets.size();
-    }
-
-    // === CELESTIAL INTEGRATION ===
-
-    // CORRECTED: Calculate solar system center - ONLY sky rotation, no orbital motion
-    private String[] calculateSharedSolarSystemCenter(String observerPlanetKey) {
-        String skyRotation = generateSkyRotationExpression(observerPlanetKey);
-
-        // Sun's position in sky = just the sky rotation (day/night cycle)
-        // No orbital motion component for the sun
-        String sunAngleInSky = skyRotation;
-
-        // Very small offset - just to establish the center point
-        String centerX = String.format("%.6f * cos(radians(%s))", 0.001, sunAngleInSky);
-        String centerY = String.format("%.6f * sin(radians(%s))", 0.001, sunAngleInSky);
-
-        return new String[]{centerX, centerY, "0"};
-    }
-
-    // CORRECTED: Sun expressions - normal distance, only sky rotation
-    public CelestialExpressions generateSunExpressions(String observerPlanetKey){
-        String[] sharedCenter = calculateSharedSolarSystemCenter(observerPlanetKey);
-
-        // Sun gets normal distance (like vanilla sun) and no additional rotation
-        return new CelestialExpressions(sun, "0", "0", "0", "30", "100", "1 - rainAlpha",
-                sharedCenter[0], sharedCenter[1], sharedCenter[2]);
-    }
-
-    // CORRECTED: Planet expressions - same center + orbital motion + orbital distance
-    public CelestialExpressions generatePlanetExpressions(String targetPlanetKey, String observerPlanetKey) {
-        PlanetaryBody target = planets.get(targetPlanetKey);
-        PlanetaryBody observer = planets.get(observerPlanetKey);
-
-        String[] sharedCenter = calculateSharedSolarSystemCenter(observerPlanetKey);  // Same tiny center as sun
-
-        String orbitalRotation = generateGeocentricRotation(target, observer);  // Orbital motion around sun
-        String orbitalDistance = String.format("%.1f", Math.max(50.0, target.getSemiMajorAxisAU() * 30.0));  // Distance from sun
-
-        return new CelestialExpressions(target, orbitalRotation, "0", "0",
-                generateDynamicScale(target, observer), orbitalDistance,
-                generateDistanceBasedAlpha(target, observer),
-                sharedCenter[0], sharedCenter[1], sharedCenter[2]);
-    }
-
-    /**
-     * Generate complete Celestial skybox data for a planet using offset-based approach
-     * This is the final output for CelestialSkyDataProvider integration
-     */
-    public Map<String, CelestialExpressions> generateCompleteSkybox(String observerPlanetKey) {
-        Map<String, CelestialExpressions> skybox = new HashMap<>();
-
-        for (PlanetaryBody planet : planets.values()) {
-            if (!planet.getPlanetKey().equals(observerPlanetKey)) {
-                CelestialExpressions expressions = generatePlanetExpressions(planet.getPlanetKey(), observerPlanetKey);
-                if (expressions != null) {
-                    skybox.put("planet_" + planet.getPlanetKey(), expressions);
-                }
-            }
+        // Validate orbital periods
+        if (observerOrbit.orbitalPeriod <= 0 || targetOrbit.orbitalPeriod <= 0) {
+            System.err.println("WARNING: Invalid orbital period for " + targetId + ", using static position");
+            return new String[]{"0", "0", "0"};
         }
 
-        return skybox;
+        // Convert distances to AU
+        double observerDistanceAU = observerOrbit.distanceFromStar / AU_TO_KM;
+        double targetDistanceAU = targetOrbit.distanceFromStar / AU_TO_KM;
+
+        // Calculate relative distance
+        double relativeDistance = Math.abs(targetDistanceAU - observerDistanceAU);
+
+        // Handle case where objects are at same orbital distance
+        if (relativeDistance < 0.001) {
+            System.err.println("WARNING: " + targetId + " at same distance as " + observerId + ", using small offset");
+            relativeDistance = 0.1; // Small offset to prevent divide by zero
+        }
+
+        // Calculate mean motion (angular velocity) for both objects
+        double observerPeriod = observerOrbit.orbitalPeriod; // days
+        double targetPeriod = targetOrbit.orbitalPeriod; // days
+
+        // Angular velocity in degrees per tick
+        double observerAngularVelocity = (360.0 / observerPeriod) / TICKS_PER_DAY;
+        double targetAngularVelocity = (360.0 / targetPeriod) / TICKS_PER_DAY;
+
+        // Relative angular velocity (how fast target moves relative to observer)
+        double relativeAngularVelocity = targetAngularVelocity - observerAngularVelocity;
+
+        // Apply TIME_SCALE_FACTOR
+        relativeAngularVelocity /= TIME_SCALE_FACTOR;
+
+        // Validate result
+        if (Double.isNaN(relativeAngularVelocity) || Double.isInfinite(relativeAngularVelocity)) {
+            System.err.println("ERROR: Invalid angular velocity for " + targetId + ", using 0");
+            return new String[]{"0", "0", "0"};
+        }
+
+        // Apply SIZE_SCALE_FACTOR for visibility
+        double scaledDistance = relativeDistance * SIZE_SCALE_FACTOR;
+
+        // Validate scaled distance
+        if (Double.isNaN(scaledDistance) || Double.isInfinite(scaledDistance)) {
+            System.err.println("ERROR: Invalid scaled distance for " + targetId + ", using 0");
+            return new String[]{"0", "0", "0"};
+        }
+
+        // Generate position equations using circular orbit formula
+        // X = distance * cos(angle), Y = 0 (coplanar), Z = distance * sin(angle)
+        // Angle = angular_velocity * time
+
+        String angleEquation = String.format("worldTime * %.8f", relativeAngularVelocity);
+
+        String posX = String.format("%.4f * cos(%s)", scaledDistance, angleEquation);
+        String posY = "0"; // Assume coplanar orbits for now
+        String posZ = String.format("%.4f * sin(%s)", scaledDistance, angleEquation);
+
+        return new String[]{posX, posY, posZ};
     }
-
+    
     /**
-     * CORRECTED: Generate angular offset FROM the sun's position
-     * This is the angle between sun→observer and sun→target as seen by observer
+     * Generates a scale equation for a target object's visual size.
+     * Scale depends on the object's physical radius and distance.
+     * 
+     * @param targetId The target object's identifier
+     * @return Equation string for scale value
      */
-    private String generateGeocentricRotation(PlanetaryBody target, PlanetaryBody observer) {
-        double targetSpeed = target.getOrbitalSpeedCoefficient();
-        double observerSpeed = observer.getOrbitalSpeedCoefficient();
-        double targetPhase = target.getMeanAnomalyAtEpoch();
-        double observerPhase = observer.getMeanAnomalyAtEpoch();
-
-        // Angular difference in orbital positions (as seen from sun)
-        String orbitalAngleDifference = String.format("(worldTime * %.8f + %.2f) - (worldTime * %.8f + %.2f)",
-                targetSpeed, targetPhase, observerSpeed, observerPhase);
-
-        // Convert to angular offset as seen by observer
-        double targetDistance = target.getSemiMajorAxisAU();
-        double observerDistance = observer.getSemiMajorAxisAU();
-
-        if (targetDistance < observerDistance) {
-            // Inner planet - limited angular separation from sun
-            double maxSeparation = Math.toDegrees(Math.asin(targetDistance / observerDistance));
-            return String.format("%.2f * sin(radians(%s))", maxSeparation, orbitalAngleDifference);
+    public String generateScaleEquation(Identifier targetId) {
+        CelestialObject target = objects.get(targetId);
+        
+        if (target == null || target.planetConfig == null) {
+            return "20"; // Default scale
+        }
+        
+        // Get physical radius from planet model
+        PlanetModel model = target.getPlanetModel();
+        double radiusKm = model.getConfig().getCircumference() / (2000 * Math.PI); // Convert meters to km
+        
+        // Calculate angular size (simplified)
+        // For a sphere at distance d with radius r: angular_size ≈ 2 * r / d
+        double distanceKm = target.orbitalData.distanceFromStar;
+        double angularSize = (2.0 * radiusKm) / distanceKm;
+        
+        // Convert to visual scale with SIZE_SCALE_FACTOR
+        double visualScale = angularSize * SIZE_SCALE_FACTOR * 1000.0;
+        
+        // Clamp to reasonable range
+        visualScale = Math.max(0.5, Math.min(100.0, visualScale));
+        
+        return String.format("%.2f", visualScale);
+    }
+    
+    /**
+     * Generates an alpha (transparency) equation for a target object.
+     * Alpha can depend on distance, daylight, etc.
+     * 
+     * @param targetId The target object's identifier
+     * @return Equation string for alpha value (0-1)
+     */
+    public String generateAlphaEquation(Identifier targetId) {
+        CelestialObject target = objects.get(targetId);
+        
+        if (target == null) {
+            return "1"; // Fully opaque by default
+        }
+        
+        // Stars are always visible, planets fade during day
+        if (target.type == ObjectType.SOLAR) {
+            return "1 - rainAlpha"; // Star always visible except in rain
         } else {
-            // Outer planet - larger angular separations possible
-            double distanceRatio = observerDistance / targetDistance;
-            return String.format("%.3f * (%s)", distanceRatio, orbitalAngleDifference);
+            // Planets visible mostly at night
+            return "max(0.5, (1 - dayLight * 0.5)) * (1 - rainAlpha)";
         }
     }
-
+    
     /**
-     * Calculate position offset with sky rotation
-     * UPDATED: Sun's position now includes observer planet's rotation
+     * Gets all objects visible from an observer's perspective.
+     * Excludes the observer itself.
+     * 
+     * @param observerId The observer's identifier
+     * @return List of all visible celestial objects
      */
-    private String[] calculateHeliocentricOffset(PlanetaryBody target, PlanetaryBody observer, String skyRotation) {
-        double observerSpeed = observer.getOrbitalSpeedCoefficient();
-        double observerPhase = observer.getMeanAnomalyAtEpoch();
-
-        // Observer's orbital position
-        String observerOrbitalAngle = String.format("worldTime * %.8f + %.2f", observerSpeed, observerPhase);
-
-        // Sun's position includes both orbital motion AND sky rotation
-        String sunAngleInSky = String.format("(%s) + 180 + (%s)", observerOrbitalAngle, skyRotation);
-
-        // Convert to screen coordinates
-        String offsetX = String.format("%.3f * cos(radians(%s))", 0.1, sunAngleInSky);
-        String offsetY = String.format("%.3f * sin(radians(%s))", 0.1, sunAngleInSky);
-
-        return new String[]{offsetX, offsetY};
-    }
-
-    /**
-     * Calculate sky rotation speed based on observer planet's rotation period
-     * @param observerPlanetKey The planet whose rotation determines day/night
-     * @return Rotation speed in degrees per tick
-     */
-    public double calculateSkyRotationSpeed(String observerPlanetKey) {
-        // Get the planet config to find rotation period
-        PlanetConfig config = null;
-        try {
-            config = HardcodedPlanets.getPlanet(observerPlanetKey);
-        } catch (Exception e) {
-            // Fallback to Earth-like rotation
-            return 360.0 / 24000.0; // 1 MC day = 24000 ticks
-        }
-
-        if (config == null) {
-            return 360.0 / 24000.0; // Earth fallback
-        }
-
-        double rotationPeriodMCDays = config.getRotationPeriod();
-        double ticksPerRotation = rotationPeriodMCDays * 24000.0;
-
-        return 360.0 / ticksPerRotation; // degrees per tick
-    }
-
-    /**
-     * Generate sky rotation expression for observer planet
-     * This makes the entire sky rotate due to planetary rotation
-     */
-    public String generateSkyRotationExpression(String observerPlanetKey) {
-        double rotationSpeed = calculateSkyRotationSpeed(observerPlanetKey);
-        return String.format("worldTime * %.8f", rotationSpeed);
-    }
-
-    /**
-     * Generate dynamic scale expression that changes with orbital distance
-     */
-    private String generateDynamicScale(PlanetaryBody target, PlanetaryBody observer) {
-        double baseScale = (target.getRadiusKm() / 6371.0) * SIZE_SCALE_FACTOR * 0.002;
-
-        double targetSpeed = target.getOrbitalSpeedCoefficient();
-        double observerSpeed = observer.getOrbitalSpeedCoefficient();
-        double targetPhase = target.getMeanAnomalyAtEpoch();
-        double observerPhase = observer.getMeanAnomalyAtEpoch();
-        double targetDistance = target.getSemiMajorAxisAU();
-        double observerDistance = observer.getSemiMajorAxisAU();
-
-        // Calculate dynamic distance between planets
-        String distanceFormula = String.format(
-                "sqrt((" +
-                        "%.3f * cos(radians(worldTime * %.8f + %.2f)) - %.3f * cos(radians(worldTime * %.8f + %.2f))" +
-                        ")^2 + (" +
-                        "%.3f * sin(radians(worldTime * %.8f + %.2f)) - %.3f * sin(radians(worldTime * %.8f + %.2f))" +
-                        ")^2)",
-                targetDistance, targetSpeed, targetPhase, observerDistance, observerSpeed, observerPhase,
-                targetDistance, targetSpeed, targetPhase, observerDistance, observerSpeed, observerPhase
-        );
-
-        // Scale inversely with distance
-        return String.format("%.4f / max(0.1, %s)", baseScale * 2.0, distanceFormula);
-    }
-
-    /**
-     * CORRECTED: Generate distance as target planet's distance from sun
-     * This represents how far the planet appears from the sun in the sky
-     */
-    private String generateDynamicDistance(PlanetaryBody target, PlanetaryBody observer) {
-        // Distance should be target's orbital radius (distance from sun)
-        double sunToTargetDistance = target.getSemiMajorAxisAU();
-
-        // Scale appropriately for Celestial display (keeping planets reasonably visible)
-        double scaledDistance = Math.max(50.0, sunToTargetDistance * 100.0);
-
-        return String.format("%.1f", scaledDistance);
-    }
-
-    /**
-     * Generate distance and brightness-based alpha expression
-     */
-    private String generateDistanceBasedAlpha(PlanetaryBody target, PlanetaryBody observer) {
-        double brightness = Math.min(1.0, target.getAlbedo() * 2.0);
-
-        // Basic visibility with day/night effects
-        return String.format("%.2f * max(0.2, (1 - dayLight * 0.7)) * (1 - rainAlpha)", brightness);
-    }
-
-    // === UTILITY & DEBUGGING ===
-
-    /**
-     * Check if a planet exists in the system
-     */
-    public boolean hasPlanet(String planetKey) {
-        return planets.containsKey(planetKey);
-    }
-
-    /**
-     * Get detailed visibility report for debugging
-     */
-    public String getVisibilityReport(String observerPlanetKey, long worldTimeTicks) {
-        List<VisiblePlanet> visible = getVisiblePlanets(observerPlanetKey, worldTimeTicks);
-
-        StringBuilder report = new StringBuilder();
-        report.append(String.format("=== VISIBILITY FROM %s (time: %d) ===\n", observerPlanetKey.toUpperCase(), worldTimeTicks));
-
-        if (visible.isEmpty()) {
-            report.append("No planets currently visible\n");
-        } else {
-            for (VisiblePlanet vp : visible) {
-                report.append(String.format("%s: size=%.3f°, brightness=%.6f, distance=%.2f AU\n",
-                        vp.planet.getName(), vp.apparentSize, vp.brightness, vp.distance));
+    public java.util.List<CelestialObject> getVisibleObjects(Identifier observerId) {
+        java.util.List<CelestialObject> visible = new java.util.ArrayList<>();
+        for (CelestialObject obj : objects.values()) {
+            if (!obj.identifier.equals(observerId)) {
+                visible.add(obj);
             }
         }
-
-        return report.toString();
+        return visible;
     }
 
     /**
-     * Log orbital summary for all planets
+     * Represents a celestial object in a star system
      */
-    private void logOrbitalSummary() {
-        Terradyne.LOGGER.info("=== ORBITAL SUMMARY ===");
-        for (PlanetaryBody planet : planets.values()) {
-            Terradyne.LOGGER.info(planet.getOrbitalSummary());
+    public static class CelestialObject {
+        private final Identifier identifier;
+        private final String name;
+        private final ObjectType type;
+        private final PlanetConfig planetConfig;
+        private final OrbitalData orbitalData;
+        private PlanetModel planetModel; // Lazy-loaded
+
+        public CelestialObject(Identifier identifier, String name, ObjectType type,
+                              PlanetConfig planetConfig, OrbitalData orbitalData) {
+            this.identifier = identifier;
+            this.name = name;
+            this.type = type;
+            this.planetConfig = planetConfig;
+            this.orbitalData = orbitalData;
         }
-        Terradyne.LOGGER.info("========================");
+
+        public Identifier getIdentifier() {
+            return identifier;
+        }
+
+        public String getName() {
+            return name;
+        }
+
+        public ObjectType getType() {
+            return type;
+        }
+
+        public PlanetConfig getPlanetConfig() {
+            return planetConfig;
+        }
+
+        public OrbitalData getOrbitalData() {
+            return orbitalData;
+        }
+
+        /**
+         * Get or create the planet model (lazy initialization)
+         */
+        public PlanetModel getPlanetModel() {
+            if (planetModel == null) {
+                planetModel = new PlanetModel(planetConfig);
+            }
+            return planetModel;
+        }
     }
 
     /**
-     * Get system status for debugging
+     * Orbital mechanics data
      */
-    public String getSystemStatus() {
-        return String.format("StarSystemModel{%d planets, time_scale=1/%.0f, size_scale=%.0fx}",
-                planets.size(), TIME_SCALE_FACTOR, SIZE_SCALE_FACTOR);
-    }
+    public static class OrbitalData {
+        public final double distanceFromParent; // km
+        public final double distanceFromStar;   // million km
+        public final double orbitalPeriod;      // days
+        public final double eccentricity;
 
-    // === CONFIGURATION ACCESSORS ===
-
-    public static double getTimeScaleFactor() { return TIME_SCALE_FACTOR; }
-    public static double getSizeScaleFactor() { return SIZE_SCALE_FACTOR; }
-    public static double getBrightnessThreshold() { return BRIGHTNESS_THRESHOLD; }
-    public static double getMinApparentSize() { return MIN_APPARENT_SIZE; }
-
-    // === INNER CLASSES ===
-
-    /**
-     * Represents a planet that is visible from an observer planet
-     */
-    public static class VisiblePlanet {
-        public final PlanetaryBody planet;
-        public final double apparentSize;    // Angular size in degrees
-        public final double brightness;      // Relative brightness
-        public final double distance;        // Distance in AU
-        public final double[] observerPos;   // Observer 3D position
-        public final double[] planetPos;     // Planet 3D position
-
-        public VisiblePlanet(PlanetaryBody planet, double apparentSize, double brightness,
-                             double distance, double[] observerPos, double[] planetPos) {
-            this.planet = planet;
-            this.apparentSize = apparentSize;
-            this.brightness = brightness;
-            this.distance = distance;
-            this.observerPos = observerPos.clone();
-            this.planetPos = planetPos.clone();
+        public OrbitalData(double distanceFromParent, double distanceFromStar,
+                          double orbitalPeriod, double eccentricity) {
+            this.distanceFromParent = distanceFromParent;
+            this.distanceFromStar = distanceFromStar;
+            this.orbitalPeriod = orbitalPeriod;
+            this.eccentricity = eccentricity;
         }
     }
 
     /**
-     * Container for all Celestial expressions for a planet including position offsets
-     * UPDATED: Now includes pos_x, pos_y, pos_z for heliocentric positioning
+     * Object type determines dimension generation strategy
      */
-    public static class CelestialExpressions {
-        public final PlanetaryBody planet;
-        public final String rotationX;     // Geocentric rotation expression
-        public final String rotationY;     // Always "0" for now
-        public final String rotationZ;     // Always "0" for now (no inclinations)
-        public final String scale;         // Dynamic scale expression
-        public final String distance;      // Distance expression
-        public final String alpha;         // Visibility expression
-        public final String posX;          // Position offset X (heliocentric correction)
-        public final String posY;          // Position offset Y (heliocentric correction)
-        public final String posZ;          // Position offset Z (always "0" for now)
-
-        public CelestialExpressions(PlanetaryBody planet, String rotationX, String rotationY, String rotationZ,
-                                    String scale, String distance, String alpha, String posX, String posY, String posZ) {
-            this.planet = planet;
-            this.rotationX = rotationX;
-            this.rotationY = rotationY;
-            this.rotationZ = rotationZ;
-            this.scale = scale;
-            this.distance = distance;
-            this.alpha = alpha;
-            this.posX = posX;
-            this.posY = posY;
-            this.posZ = posZ;
-        }
-
-        @Override
-        public String toString() {
-            return String.format("CelestialExpressions for %s:\n" +
-                            "  rotationX: %s\n" +
-                            "  rotationZ: %s\n" +
-                            "  scale: %s\n" +
-                            "  distance: %s\n" +
-                            "  alpha: %s\n" +
-                            "  posX: %s\n" +
-                            "  posY: %s",
-                    planet.getName(), rotationX, rotationZ, scale, distance, alpha, posX, posY);
-        }
+    public enum ObjectType {
+        TERRESTRIAL,  // Rocky planets/moons with terrain
+        SOLAR,        // Stars with lava dimensions
+        GASEOUS       // Gas giants with skybox-only dimensions
     }
 }

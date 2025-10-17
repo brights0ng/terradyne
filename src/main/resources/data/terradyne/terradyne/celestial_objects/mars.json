@@ -1,0 +1,21 @@
+{
+  "type": "terrestrial",
+  "name": "Mars",
+  "physical_properties": {
+    "circumference": 21344,
+    "crust_composition": "FERROUS",
+    "atmosphere_composition": "TRACE_ATMOSPHERE",
+    "tectonic_activity": 0.1,
+    "water_content": 0.1,
+    "crustal_thickness": 50.0,
+    "atmospheric_density": 0.01,
+    "rotation_period": 1.03,
+    "noise_scale": 0.003
+  },
+  "orbital_properties": {
+    "distance_from_parent": 0.0,
+    "distance_from_star": 228.0,
+    "orbital_period": 687.0,
+    "eccentricity": 0.0934
+  }
+}

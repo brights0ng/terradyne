@@ -2,25 +2,25 @@
 
 A sophisticated Minecraft Fabric mod that generates realistic alien planets with scientifically-inspired terrain systems, custom biomes, and physically-based world generation.
 
-## 🌍 Overview
+## Overview
 
 Terradyne creates explorable alien worlds with realistic planetary characteristics, diverse biomes, and scientifically-grounded terrain generation. Each planet type features unique atmospheric conditions, geological processes, and specialized terrain features.
 
-## ✨ Features
+## Features
 
-### 🪐 Planet Types
+### Planet Types
 Currently implemented planet types with full terrain generation:
 
-- **🏜️ Desert Bodies** - Arid worlds with sand dunes, mesas, canyons, and salt flats. [NOT YET IMPLEMENTED]
-- **🌊 Oceanic Bodies** - Water-rich worlds with deep oceans and varied landmasses. [NOT YET IMPLEMENTED]
-- **🌑 Rocky Bodies** - Airless or thin-atmosphere worlds with cratered surfaces. [NOT YET IMPLEMENTED]
-- **🌋 Volcanic Bodies** - Inhospitable worlds with volcanos and igneous rocks. [NOT YET IMPLEMENTED]
-- **💎 Carbon Bodies** - Dark worlds rich with carbonic rocks, including graphite fields and diamond mountains. [NOT YET IMPLEMENTED]
-- **🧊 Icy Bodies** - Frigid worlds made of solid ice and rock. [NOT YET IMPLEMENTED]
-- **🪼 Subsurface Oceanic Bodies** - Glacial worlds covered in a thick crust of ice, with deep oceans beneath possibly containing marine life. [NOT YET IMPLEMENTED]
-- **🧲 Iron Bodies** - Metallic worlds covered in ferrous rock containing lots of simple metals -- essentially the core of another world. [NOT YET IMPLEMENTED]
+- **Desert Bodies** - Arid worlds with sand dunes, mesas, canyons, and salt flats. [NOT YET IMPLEMENTED]
+- **Oceanic Bodies** - Water-rich worlds with deep oceans and varied landmasses. [NOT YET IMPLEMENTED]
+- **Rocky Bodies** - Airless or thin-atmosphere worlds with cratered surfaces. [NOT YET IMPLEMENTED]
+- **Volcanic Bodies** - Inhospitable worlds with volcanos and igneous rocks. [NOT YET IMPLEMENTED]
+- **Carbon Bodies** - Dark worlds rich with carbonic rocks, including graphite fields and diamond mountains. [NOT YET IMPLEMENTED]
+- **Icy Bodies** - Frigid worlds made of solid ice and rock. [NOT YET IMPLEMENTED]
+- **Subsurface Oceanic Bodies** - Glacial worlds covered in a thick crust of ice, with deep oceans beneath possibly containing marine life. [NOT YET IMPLEMENTED]
+- **Iron Bodies** - Metallic worlds covered in ferrous rock containing lots of simple metals -- essentially the core of another world. [NOT YET IMPLEMENTED]
 
-### 🗺️ Biome System
+### Biome System
 
 #### Desert Planet Biomes (4 Specialized Types)
 Each desert planet contains all four biomes distributed based on planetary characteristics:
@@ -30,7 +30,7 @@ Each desert planet contains all four biomes distributed based on planetary chara
 3. **Limestone Canyons** (25%) - Deep carved valleys and gorge systems
 4. **Salt Flats** (25%) - Crystalline plains with hexagonal crack patterns
 
-### 🔬 Advanced Terrain Generation
+### Advanced Terrain Generation
 
 #### Physics-Based Generation System
 - **Master Noise Provider** - Single unified noise source prevents terrain artifacts
@@ -44,7 +44,7 @@ Each desert planet contains all four biomes distributed based on planetary chara
 - **Salt Crystallization** - Evaporation patterns forming geometric surface features
 - **Dune Dynamics** - Wind-driven sand accumulation and transport
 
-### 🎮 Commands & Gameplay
+### Commands & Gameplay
 
 Complete command system for planet creation and exploration:
 
@@ -58,7 +58,7 @@ Complete command system for planet creation and exploration:
 ```
 
 #### Planet Creation Examples
-```bash
+```
 # Create different planet types
 /terradyne create Tatooine desert
 /terradyne create Kamino oceanic earthlike
@@ -166,7 +166,7 @@ Each planet type has configurable parameters affecting terrain generation:
 
 ## Development Roadmap
 
-### Implemented Features ✅
+### Implemented Features 
 - ✅ Desert planet generation with 4 specialized biomes
 - ✅ Oceanic planet generation with Earth-like characteristics
 - ✅ Rocky planet generation with airless/atmospheric variants
@@ -175,15 +175,15 @@ Each planet type has configurable parameters affecting terrain generation:
 - ✅ Complete command system with planet management
 - ✅ Custom biome data generation system
 
-### Planned Features 🔮
-- 🔮 Volcanic planets with lava flows and eruption systems
-- 🔮 Icy planets with frozen surfaces and subsurface oceans
-- 🔮 Iron planets with metallic terrain and unique properties
-- 🔮 Carbon planets with diamond formations and coal deposits
-- 🔮 Atmospheric effects and weather systems
-- 🔮 Planet-specific resources and materials
-- 🔮 Alien flora and fauna ecosystems
-- 🔮 Interplanetary travel mechanics
+### Planned Features 
+- Volcanic planets with lava flows and eruption systems
+- Icy planets with frozen surfaces and subsurface oceans
+- Iron planets with metallic terrain and unique properties
+- Carbon planets with diamond formations and coal deposits
+- Atmospheric effects and weather systems
+- Planet-specific resources and materials
+- Alien flora and fauna ecosystems
+- Interplanetary travel mechanics
 
 ## Technical Details
 
@@ -283,28 +283,4 @@ src/main/java/net/starlight/terradyne/
 5. Add planet type to `PlanetType` enum
 6. Update dimension creation in `PlanetDimensionManager`
 
-### Code Style
-- Follow Java naming conventions
-- Document complex terrain generation algorithms
-- Include parameter documentation for octaves and passes
-- Use descriptive variable names for physics calculations
-
-## 📄 License
-
-[Add your license information here]
-
-## 🙏 Acknowledgments
-
-- Inspired by real planetary science and geological processes
-- Built with the Fabric modding framework
-- Uses Minecraft's world generation system as a foundation
-
-## 📞 Support
-
-- **Issues**: [GitHub Issues](your-repo-link)
-- **Documentation**: [Wiki](your-wiki-link)
-- **Discord**: [Community Server](your-discord-link)
-
 ---
-
-*Generate infinite worlds, explore alien landscapes, and discover the wonders of procedural planet creation with Terradyne.*

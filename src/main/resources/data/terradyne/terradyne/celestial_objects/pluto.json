@@ -1,0 +1,21 @@
+{
+  "type": "terrestrial",
+  "name": "Pluto",
+  "physical_properties": {
+    "circumference": 7445,
+    "crust_composition": "REGOLITHIC",
+    "atmosphere_composition": "TRACE_ATMOSPHERE",
+    "tectonic_activity": 0.0,
+    "water_content": 0.8,
+    "crustal_thickness": 25.0,
+    "atmospheric_density": 0.001,
+    "rotation_period": 6.4,
+    "noise_scale": 0.005
+  },
+  "orbital_properties": {
+    "distance_from_parent": 0.0,
+    "distance_from_star": 5900.0,
+    "orbital_period": 90560.0,
+    "eccentricity": 0.2488
+  }
+}

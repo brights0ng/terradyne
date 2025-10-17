@@ -1,0 +1,21 @@
+{
+  "type": "terrestrial",
+  "name": "Earth",
+  "physical_properties": {
+    "circumference": 40075,
+    "crust_composition": "SILICATE",
+    "atmosphere_composition": "OXYGEN_RICH",
+    "tectonic_activity": 0.6,
+    "water_content": 0.7,
+    "crustal_thickness": 35.0,
+    "atmospheric_density": 1.0,
+    "rotation_period": 1.0,
+    "noise_scale": 0.002
+  },
+  "orbital_properties": {
+    "distance_from_parent": 0.0,
+    "distance_from_star": 150.0,
+    "orbital_period": 365.25,
+    "eccentricity": 0.0167
+  }
+}

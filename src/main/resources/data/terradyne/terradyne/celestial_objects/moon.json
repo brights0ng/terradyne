@@ -1,0 +1,21 @@
+{
+  "type": "terrestrial",
+  "name": "Moon",
+  "physical_properties": {
+    "circumference": 10921,
+    "crust_composition": "REGOLITHIC",
+    "atmosphere_composition": "VACUUM",
+    "tectonic_activity": 0.0,
+    "water_content": 0.0,
+    "crustal_thickness": 50.0,
+    "atmospheric_density": 0.0,
+    "rotation_period": 27.3,
+    "noise_scale": 0.003
+  },
+  "orbital_properties": {
+    "distance_from_parent": 384400.0,
+    "distance_from_star": 150.0,
+    "orbital_period": 27.3,
+    "eccentricity": 0.0549
+  }
+}

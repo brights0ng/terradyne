@@ -1,10 +1,54 @@
 package net.starlight.terradyne.planet.physics;
 
+import com.mojang.serialization.Codec;
+import com.mojang.serialization.codecs.RecordCodecBuilder;
+
 /**
  * Ultra-simple user input parameters for physics-based generation
  * No validation - all constraint enforcement handled by PhysicsCalculator
  */
 public class PlanetConfig {
+    
+    // Codec for serialization/deserialization
+    public static final Codec<PlanetConfig> CODEC = RecordCodecBuilder.create(instance ->
+        instance.group(
+            Codec.STRING.fieldOf("planet_name").forGetter(PlanetConfig::getPlanetName),
+            Codec.LONG.fieldOf("seed").forGetter(PlanetConfig::getSeed),
+            Codec.INT.fieldOf("circumference").forGetter(PlanetConfig::getCircumference),
+            Codec.LONG.fieldOf("distance_from_star").forGetter(PlanetConfig::getDistanceFromStar),
+            Codec.STRING.fieldOf("crust_composition").forGetter(c -> c.getCrustComposition().name()),
+            Codec.STRING.fieldOf("atmosphere_composition").forGetter(c -> c.getAtmosphereComposition().name()),
+            Codec.DOUBLE.fieldOf("tectonic_activity").forGetter(PlanetConfig::getTectonicActivity),
+            Codec.DOUBLE.fieldOf("water_content").forGetter(PlanetConfig::getWaterContent),
+            Codec.DOUBLE.fieldOf("crustal_thickness").forGetter(PlanetConfig::getCrustalThickness),
+            Codec.DOUBLE.fieldOf("atmospheric_density").forGetter(PlanetConfig::getAtmosphericDensity),
+            Codec.DOUBLE.fieldOf("rotation_period").forGetter(PlanetConfig::getRotationPeriod),
+            Codec.DOUBLE.fieldOf("noise_scale").forGetter(PlanetConfig::getNoiseScale)
+        ).apply(instance, PlanetConfig::fromCodec)
+    );
+    
+    /**
+     * Codec constructor - reconstructs PlanetConfig from JSON
+     */
+    private static PlanetConfig fromCodec(String planetName, long seed, int circumference,
+                                          long distanceFromStar, String crustComposition,
+                                          String atmosphereComposition, double tectonicActivity,
+                                          double waterContent, double crustalThickness,
+                                          double atmosphericDensity, double rotationPeriod,
+                                          double noiseScale) {
+        PlanetConfig config = new PlanetConfig(planetName, seed);
+        config.circumference = circumference;
+        config.distanceFromStar = distanceFromStar;
+        config.crustComposition = CrustComposition.valueOf(crustComposition);
+        config.atmosphereComposition = AtmosphereComposition.valueOf(atmosphereComposition);
+        config.tectonicActivity = tectonicActivity;
+        config.waterContent = waterContent;
+        config.crustalThickness = crustalThickness;
+        config.atmosphericDensity = atmosphericDensity;
+        config.rotationPeriod = rotationPeriod;
+        config.noiseScale = noiseScale;
+        return config;
+    }
     
     // === CORE PHYSICAL PROPERTIES ===
     private final String planetName;

@@ -1,0 +1,21 @@
+{
+  "type": "solar",
+  "name": "Sol",
+  "physical_properties": {
+    "circumference": 4379000,
+    "crust_composition": "SILICATE",
+    "atmosphere_composition": "VACUUM",
+    "tectonic_activity": 1.0,
+    "water_content": 0.0,
+    "crustal_thickness": 0.0,
+    "atmospheric_density": 0.0,
+    "rotation_period": 25.0,
+    "noise_scale": 0.001
+  },
+  "orbital_properties": {
+    "distance_from_parent": 0.0,
+    "distance_from_star": 0.0,
+    "orbital_period": 0.0,
+    "eccentricity": 0.0
+  }
+}

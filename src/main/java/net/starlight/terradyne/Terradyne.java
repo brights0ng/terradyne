@@ -3,8 +3,10 @@ package net.starlight.terradyne;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
+import net.fabricmc.fabric.api.resource.ResourceManagerHelper;
 import net.minecraft.registry.Registry;
 import net.minecraft.registry.Registries;
+import net.minecraft.resource.ResourceType;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.Identifier;
@@ -17,6 +19,8 @@ import net.starlight.terradyne.planet.physics.PlanetModel;
 import net.starlight.terradyne.planet.physics.PlanetModelRegistry;
 import net.starlight.terradyne.planet.terrain.UniversalChunkGenerator;
 import net.starlight.terradyne.planet.dimension.ModDimensionTypes;
+import net.starlight.terradyne.starsystem.DatapackLoader;
+import net.starlight.terradyne.starsystem.TerradyneResourceReloadListener;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -42,6 +46,7 @@ public class Terradyne implements ModInitializer {
 		initializeTerrainSystem();
 		registerCommands();
 		initializeRegistryKeys();
+		registerResourceReloadListener(); // NEW: Load datapacks on resource reload
 		registerServerEvents();
 
 		LOGGER.info("✅ Terradyne initialized successfully!");
@@ -152,32 +157,70 @@ public class Terradyne implements ModInitializer {
 	}
 
 	/**
-	 * Register server events
+	 * Register resource reload listener for datapack loading
+	 * CRITICAL: This ensures datapacks load BEFORE dimension deserialization
 	 */
-	private void registerServerEvents() {
+	private void registerResourceReloadListener() {
 		try {
-			ServerLifecycleEvents.SERVER_STARTING.register(server -> {
-				Terradyne.server = server;
-				LOGGER.info("Server started - Terradyne is ready for planet generation");
-			});
-
-			// NEW: Populate registry after worlds are loaded
-			ServerLifecycleEvents.SERVER_STARTED.register(server -> {
-				populatePlanetModelRegistry(server);
-			});
-
-			ServerLifecycleEvents.SERVER_STOPPED.register(server -> {
-				Terradyne.server = null;
-				PlanetModelRegistry.clear();
-				LOGGER.info("Server stopped - Terradyne cleaned up");
-			});
-
-			LOGGER.info("✓ Server lifecycle events registered");
+			// Register for BOTH client and server resource reloads
+			// Client reload happens during world creation
+			ResourceManagerHelper.get(ResourceType.CLIENT_RESOURCES)
+				.registerReloadListener(new TerradyneResourceReloadListener());
+			
+			ResourceManagerHelper.get(ResourceType.SERVER_DATA)
+				.registerReloadListener(new TerradyneResourceReloadListener());
+			
+			LOGGER.info("✓ Resource reload listener registered (CLIENT + SERVER)");
+			LOGGER.info("  → Datapacks will load BEFORE dimension deserialization");
+			LOGGER.info("  → This fixes the timing issue with chunk generator codec");
 		} catch (Exception e) {
-			LOGGER.error("❌ Failed to register server events!", e);
-			throw new RuntimeException("Critical server event registration failure", e);
+			LOGGER.error("❌ Failed to register resource reload listener!", e);
+			throw new RuntimeException("Critical resource reload listener registration failure", e);
 		}
 	}
+
+    /**
+     * Register server events
+     */
+    private void registerServerEvents() {
+        try {
+            // CRITICAL: Load datapacks BEFORE dimensions deserialize
+            ServerLifecycleEvents.SYNC_DATA_PACK_CONTENTS.register((player, success) -> {
+                if (success) {
+                    LOGGER.info("Loading Terradyne datapacks (BEFORE dimension deserialization)...");
+                    try {
+                        net.starlight.terradyne.starsystem.DatapackLoader.loadFromDatapacks(player.server.getResourceManager());
+                        LOGGER.info("✅ Datapacks loaded successfully - dimensions can now deserialize");
+                    } catch (Exception e) {
+                        LOGGER.error("❌ CRITICAL: Failed to load datapacks - dimensions will fail!", e);
+                        throw new RuntimeException("Failed to load Terradyne datapacks", e);
+                    }
+                }
+            });
+
+            ServerLifecycleEvents.SERVER_STARTING.register(server -> {
+                Terradyne.server = server;
+                LOGGER.info("Server starting - Terradyne is ready for planet generation");
+            });
+
+            // Populate registry after worlds are loaded
+            ServerLifecycleEvents.SERVER_STARTED.register(server -> {
+                populatePlanetModelRegistry(server);
+            });
+
+            ServerLifecycleEvents.SERVER_STOPPED.register(server -> {
+                Terradyne.server = null;
+                PlanetModelRegistry.clear();
+                net.starlight.terradyne.starsystem.DatapackLoader.clear();
+                LOGGER.info("Server stopped - Terradyne cleaned up");
+            });
+
+            LOGGER.info("✓ Server lifecycle events registered");
+        } catch (Exception e) {
+            LOGGER.error("❌ Failed to register server events!", e);
+            throw new RuntimeException("Critical server event registration failure", e);
+        }
+    }
 
 	/**
 	 * Populate PlanetModelRegistry by scanning all loaded dimensions

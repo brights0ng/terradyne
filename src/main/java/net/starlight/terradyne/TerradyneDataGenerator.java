@@ -2,11 +2,17 @@ package net.starlight.terradyne;
 
 import net.fabricmc.fabric.api.datagen.v1.DataGeneratorEntrypoint;
 import net.fabricmc.fabric.api.datagen.v1.FabricDataGenerator;
+import net.fabricmc.fabric.api.event.registry.DynamicRegistrySetupCallback;
 import net.minecraft.registry.RegistryBuilder;
 import net.minecraft.registry.RegistryKeys;
 import net.starlight.terradyne.datagen.*;
 import net.starlight.terradyne.planet.features.ModConfiguredFeatures;
 import net.starlight.terradyne.planet.features.ModPlacedFeatures;
+import net.starlight.terradyne.starsystem.CelestialObjectRegistry;
+import net.starlight.terradyne.starsystem.DatapackLoader;
+import net.starlight.terradyne.starsystem.StarSystemRegistry;
+
+import java.nio.file.Path;
 
 /**
  * Main data generator entry point for Terradyne mod
@@ -14,55 +20,57 @@ import net.starlight.terradyne.planet.features.ModPlacedFeatures;
  */
 public class TerradyneDataGenerator implements DataGeneratorEntrypoint {
 
-	@Override
-	public void onInitializeDataGenerator(FabricDataGenerator fabricDataGenerator) {
-		FabricDataGenerator.Pack pack = fabricDataGenerator.createPack();
+    @Override
+    public void onInitializeDataGenerator(FabricDataGenerator fabricDataGenerator) {
+        FabricDataGenerator.Pack pack = fabricDataGenerator.createPack();
 
-		Terradyne.LOGGER.info("=== INITIALIZING TERRADYNE DATA GENERATION ===");
+        Terradyne.LOGGER.info("=== INITIALIZING TERRADYNE DATA GENERATION ===");
 
-		// === CORE REGISTRY DATA ===
-		// Register biome data provider (now uses physics-based features)
-		pack.addProvider(BiomeDataProvider::new);
-		Terradyne.LOGGER.info("✓ BiomeDataProvider registered (physics-based features enabled)");
+        // NEW: Load celestial objects and star systems from file system
+        try {
+            // Get the project root and navigate to src/main/resources
+            Path buildPath = fabricDataGenerator.getModContainer().getRootPaths().get(0);
+            Terradyne.LOGGER.info("Build path: {}", buildPath);
 
-		// Register dimension type data provider
-		pack.addProvider(DimensionTypeDataProvider::new);
-		Terradyne.LOGGER.info("✓ DimensionTypeDataProvider registered");
+            // Navigate from build/resources/main back to project root
+            Path projectRoot = buildPath.getParent().getParent().getParent();
+            Path resourcesPath = projectRoot.resolve("src").resolve("main").resolve("resources");
 
-		// === FEATURE SYSTEM DATA ===
-		// Register configured feature data provider (tree configurations)
-		pack.addProvider(FeatureDataProviders.ConfiguredFeatureDataProvider::new);
-		Terradyne.LOGGER.info("✓ ConfiguredFeatureDataProvider registered (tree features)");
+            Terradyne.LOGGER.info("Project root: {}", projectRoot);
+            Terradyne.LOGGER.info("Resources path (should be src/main/resources): {}", resourcesPath);
 
-		// Register placed feature data provider (tree placement rules)
-		pack.addProvider(FeatureDataProviders.PlacedFeatureDataProvider::new);
-		Terradyne.LOGGER.info("✓ PlacedFeatureDataProvider registered (tree placement)");
+            if (!java.nio.file.Files.exists(resourcesPath)) {
+                throw new RuntimeException("Resources path does not exist: " + resourcesPath);
+            }
 
-		// Register feature validation provider (system validation)
-		pack.addProvider(FeatureDataProviders.FeatureValidationProvider::new);
-		Terradyne.LOGGER.info("✓ FeatureValidationProvider registered");
+            DatapackLoader.loadFromFileSystem(resourcesPath);
+        } catch (Exception e) {
+            Terradyne.LOGGER.error("CRITICAL: Failed to load datapacks", e);
+            throw new RuntimeException("Cannot generate data without datapacks", e);
+        }
 
-		// === PLANET DIMENSION DATA ===
-		// Register planet dimension data provider (hardcoded planets)
-		pack.addProvider(PlanetDimensionDataProvider::new);
-		Terradyne.LOGGER.info("✓ PlanetDimensionDataProvider registered");
+        // Verify we have data to work with
+        if (CelestialObjectRegistry.getAll().isEmpty()) {
+            throw new RuntimeException("No celestial objects found! Please create datapacks in src/main/resources/data/[namespace]/terradyne/celestial_objects/");
+        }
 
-		// === NEW: CELESTIAL SKY DATA ===
-		pack.addProvider(CelestialSkyDataProvider::new);
-		Terradyne.LOGGER.info("✓ CelestialSkyDataProvider registered (atmospheric sky rendering)");
+        if (StarSystemRegistry.getAll().isEmpty()) {
+            throw new RuntimeException("No star systems found! Please create datapacks in src/main/resources/data/[namespace]/terradyne/star_systems/");
+        }
 
-		Terradyne.LOGGER.info("=== DATA GENERATION SETUP COMPLETE ===");
-		Terradyne.LOGGER.info("Components registered:");
-		Terradyne.LOGGER.info("  - {} hardcoded planets", HardcodedPlanets.getAllPlanetNames().size());
-		Terradyne.LOGGER.info("  - {} biome types with physics-based features", 45);
-		Terradyne.LOGGER.info("  - {} tree types with full feature integration",
-				net.starlight.terradyne.planet.biology.BiomeFeatureComponents.TreeType.values().length);
-		Terradyne.LOGGER.info("  - {} vegetation palettes for different crust compositions",
-				net.starlight.terradyne.planet.biology.VegetationPalette.values().length);
-		Terradyne.LOGGER.info("");
-		Terradyne.LOGGER.info("🚀 Run 'gradle runDatagen' to generate all files");
-		Terradyne.LOGGER.info("🌳 Tree generation will be fully functional after data generation");
-	}
+        // === REGISTER DATA PROVIDERS ===
+        pack.addProvider(BiomeDataProvider::new);
+        pack.addProvider(DimensionTypeDataProvider::new);
+        pack.addProvider(FeatureDataProviders.ConfiguredFeatureDataProvider::new);
+        pack.addProvider(FeatureDataProviders.PlacedFeatureDataProvider::new);
+        pack.addProvider(FeatureDataProviders.FeatureValidationProvider::new);
+        pack.addProvider(PlanetDimensionDataProvider::new);
+        pack.addProvider(CelestialSkyDataProvider::new);
+
+        Terradyne.LOGGER.info("=== DATA GENERATION SETUP COMPLETE ===");
+        Terradyne.LOGGER.info("  - {} celestial objects", CelestialObjectRegistry.getAll().size());
+        Terradyne.LOGGER.info("  - {} star systems", StarSystemRegistry.getAll().size());
+    }
 
 	@Override
 	public void buildRegistry(RegistryBuilder registryBuilder) {

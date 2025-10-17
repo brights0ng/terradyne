@@ -4,6 +4,7 @@ import com.mojang.serialization.Codec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 import net.minecraft.registry.RegistryKey;
 import net.minecraft.registry.entry.RegistryEntry;
+import net.minecraft.util.Identifier;
 import net.minecraft.world.biome.Biome;
 import net.minecraft.world.biome.source.BiomeAccess;
 import net.minecraft.world.biome.source.BiomeSource;
@@ -18,24 +19,22 @@ import static net.starlight.terradyne.Terradyne.server;
 /**
  * Physics-based biome source that uses planetary data instead of noise
  * Implements the complete Terradyne biome classification system
+ * 
+ * NOTE: PlanetModel is set by UniversalChunkGenerator after deserialization
  */
 public class PhysicsBasedBiomeSource extends BiomeSource {
 
-    public static final Codec<PhysicsBasedBiomeSource> CODEC = RecordCodecBuilder.create(instance ->
-            instance.group(
-                    Codec.STRING.fieldOf("planet_name").forGetter(source -> source.planetName)
-            ).apply(instance, PhysicsBasedBiomeSource::new)
-    );
+    // Simple unit codec - no fields needed since PlanetModel is set by chunk generator
+    public static final Codec<PhysicsBasedBiomeSource> CODEC = 
+        Codec.unit(PhysicsBasedBiomeSource::new);
 
-    private final String planetName;
-    private PlanetModel planetModel; // Set after construction
+    private PlanetModel planetModel; // Set after construction by chunk generator
     private BiomeClassificationSystem classifier;
 
     /**
      * Constructor for codec deserialization
      */
-    public PhysicsBasedBiomeSource(String planetName) {
-        this.planetName = planetName;
+    public PhysicsBasedBiomeSource() {
         // planetModel will be set later via setPlanetModel()
     }
 
@@ -44,7 +43,6 @@ public class PhysicsBasedBiomeSource extends BiomeSource {
      */
     public PhysicsBasedBiomeSource(PlanetModel planetModel) {
         this.planetModel = planetModel;
-        this.planetName = planetModel.getConfig().getPlanetName();
         this.classifier = new BiomeClassificationSystem(planetModel);
     }
 
@@ -54,7 +52,8 @@ public class PhysicsBasedBiomeSource extends BiomeSource {
     public void setPlanetModel(PlanetModel planetModel) {
         this.planetModel = planetModel;
         this.classifier = new BiomeClassificationSystem(planetModel);
-        Terradyne.LOGGER.info("PhysicsBasedBiomeSource initialized for planet: {}", planetName);
+        Terradyne.LOGGER.info("PhysicsBasedBiomeSource initialized for planet: {}", 
+            planetModel.getConfig().getPlanetName());
     }
 
     @Override
@@ -68,7 +67,7 @@ public class PhysicsBasedBiomeSource extends BiomeSource {
     @Override
     public RegistryEntry<Biome> getBiome(int x, int y, int z, MultiNoiseUtil.MultiNoiseSampler sampler) {
         if (planetModel == null || classifier == null) {
-            Terradyne.LOGGER.warn("PhysicsBasedBiomeSource not initialized for {}, using debug biome", planetName);
+            Terradyne.LOGGER.warn("PhysicsBasedBiomeSource not initialized, using debug biome");
             return getBiomeEntry(ModBiomes.DEBUG);
         }
 
@@ -135,15 +134,13 @@ public class PhysicsBasedBiomeSource extends BiomeSource {
             return server.getRegistryManager().get(net.minecraft.registry.RegistryKeys.BIOME)
                     .getEntry(biomeKey).orElseThrow(() ->
                             new RuntimeException("Biome not found: " + biomeKey.getValue()));
-
-
     }
 
     /**
      * Get planet name for debugging
      */
     public String getPlanetName() {
-        return planetName;
+        return planetModel != null ? planetModel.getConfig().getPlanetName() : "unknown";
     }
 
     /**
@@ -156,6 +153,6 @@ public class PhysicsBasedBiomeSource extends BiomeSource {
     @Override
     public String toString() {
         return String.format("PhysicsBasedBiomeSource{planet=%s, initialized=%s}",
-                planetName, isInitialized());
+                getPlanetName(), isInitialized());
     }
 }

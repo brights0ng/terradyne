@@ -1,0 +1,21 @@
+{
+  "type": "terrestrial",
+  "name": "Venus",
+  "physical_properties": {
+    "circumference": 38025,
+    "crust_composition": "BASALTIC",
+    "atmosphere_composition": "CARBON_DIOXIDE",
+    "tectonic_activity": 0.3,
+    "water_content": 0.0,
+    "crustal_thickness": 40.0,
+    "atmospheric_density": 1.0,
+    "rotation_period": 243.0,
+    "noise_scale": 0.002
+  },
+  "orbital_properties": {
+    "distance_from_parent": 0.0,
+    "distance_from_star": 108.0,
+    "orbital_period": 225.0,
+    "eccentricity": 0.0068
+  }
+}

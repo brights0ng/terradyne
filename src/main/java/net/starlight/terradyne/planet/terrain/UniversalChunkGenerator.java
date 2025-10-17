@@ -22,11 +22,11 @@ import net.minecraft.world.gen.chunk.VerticalBlockSample;
 import net.minecraft.world.gen.noise.NoiseConfig;
 
 import net.starlight.terradyne.Terradyne;
-import net.starlight.terradyne.datagen.HardcodedPlanets;
 import net.starlight.terradyne.planet.physics.PlanetModelRegistry;
 import net.starlight.terradyne.planet.biome.PhysicsBasedBiomeSource;
 import net.starlight.terradyne.planet.physics.PlanetConfig;
 import net.starlight.terradyne.planet.physics.PlanetModel;
+import net.starlight.terradyne.starsystem.StarSystemModel;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -51,25 +51,26 @@ public class UniversalChunkGenerator extends ChunkGenerator {
     public static final Codec<UniversalChunkGenerator> CODEC = RecordCodecBuilder.create(instance ->
             instance.group(
                     BiomeSource.CODEC.fieldOf("biome_source").forGetter(ChunkGenerator::getBiomeSource),
-                    Codec.STRING.optionalFieldOf("planet_name", "").forGetter(generator -> generator.planetName)
+                    PlanetConfig.CODEC.fieldOf("planet_config").forGetter(generator -> generator.planetModel.getConfig())
             ).apply(instance, UniversalChunkGenerator::fromCodec)
     );
 
-    private String planetName;
-    private PlanetModel planetModel; // Loaded lazily from server context
+    private final Identifier planetId; // Derived from config
+    private PlanetModel planetModel; // Created from embedded config
 
 
     /**
      * Constructor for direct creation (used by WorldPlanetManager)
      */
-    public UniversalChunkGenerator(PlanetModel planetModel, BiomeSource biomeSource) {
+    public UniversalChunkGenerator(PlanetModel planetModel, BiomeSource biomeSource, Identifier planetId) {
         super(biomeSource);
         this.planetModel = planetModel;
-        this.planetName = planetModel != null ? planetModel.getConfig().getPlanetName() : "";
+        this.planetId = planetId != null ? planetId : 
+            (planetModel != null ? new Identifier("terradyne", planetModel.getConfig().getPlanetName().toLowerCase()) : null);
 
         if (planetModel != null) {
             Terradyne.LOGGER.info("=== UNIVERSAL CHUNK GENERATOR INITIALIZED (DIRECT) ===");
-            Terradyne.LOGGER.info("Planet: {}", planetModel.getConfig().getPlanetName());
+            Terradyne.LOGGER.info("Planet: {} ({})", planetId, planetModel.getConfig().getPlanetName());
             Terradyne.LOGGER.info("Classification: {}", planetModel.getPlanetClassification());
             Terradyne.LOGGER.info("Generation: PHYSICS-BASED");
             Terradyne.LOGGER.info("Height Range: Y {} to {}", MIN_WORLD_Y, MAX_WORLD_Y);
@@ -81,276 +82,48 @@ public class UniversalChunkGenerator extends ChunkGenerator {
 
 
     /**
-     * Constructor for codec deserialization - IMPROVED to use hardcoded planets first
-     * Falls back to file-based loading for user customization
+     * Constructor for codec deserialization - NOW WITH EMBEDDED CONFIG
+     * PlanetConfig is embedded directly in the dimension JSON!
+     * No external registries, no timing issues - everything just works!
      */
-    // Update the fromCodec method (around line 90 in your current file)
-    private static UniversalChunkGenerator fromCodec(BiomeSource biomeSource, String planetName) {
-        Terradyne.LOGGER.info("Creating UniversalChunkGenerator for planet: {}", planetName);
-
+    private static UniversalChunkGenerator fromCodec(BiomeSource biomeSource, PlanetConfig planetConfig) {
+        Terradyne.LOGGER.info("=== DESERIALIZING CHUNK GENERATOR WITH EMBEDDED CONFIG ===");
+        Terradyne.LOGGER.info("Planet: {}", planetConfig.getPlanetName());
+        
         try {
-            PlanetConfig planetConfig = null;
-
-            // Step 1: Try hardcoded planets first
-            if (HardcodedPlanets.isHardcodedPlanet(planetName)) {
-                planetConfig = HardcodedPlanets.getPlanet(planetName);
-                Terradyne.LOGGER.info("✅ Using hardcoded planet definition: {}", planetName);
-            }
-
-            // Step 2: Fall back to file-based loading for user customization
-            if (planetConfig == null) {
-                planetConfig = loadPlanetConfigFromWorld(planetName);
-                if (planetConfig != null) {
-                    Terradyne.LOGGER.info("✅ Using user-defined planet config: {}", planetName);
-                }
-            }
-
-            // Step 3: Create planet model if we found a config
-            if (planetConfig != null) {
-                PlanetModel planetModel = new PlanetModel(planetConfig);
-
-                // NEW: Initialize physics-based biome source with planet model
-                if (biomeSource instanceof PhysicsBasedBiomeSource physicsSource) {
-                    physicsSource.setPlanetModel(planetModel);
-
-                    // Try to set registry lookup if we can get server context
-                    try {
-                        if (server != null) {
-                            var biomeLookup = server.getRegistryManager().get(RegistryKeys.BIOME).getReadOnlyWrapper();
-//                            physicsSource.setBiomeLookup(biomeLookup);
-                            Terradyne.LOGGER.info("✅ Set biome registry lookup for: {}", planetName);
-                        }
-                    } catch (Exception e) {
-                        Terradyne.LOGGER.debug("Could not set biome lookup (probably in data gen context): {}", e.getMessage());
-                    }
-
-                    Terradyne.LOGGER.info("✅ Initialized physics-based biome source for: {}", planetName);
-                } else {
-                    Terradyne.LOGGER.warn("⚠️  BiomeSource is not physics-based for planet: {} (type: {})",
-                            planetName, biomeSource.getClass().getSimpleName());
-                }
-
-                Terradyne.LOGGER.info("✅ Successfully created planet model: {} ({})",
-                        planetName, planetModel.getPlanetClassification());
-                return new UniversalChunkGenerator(planetModel, biomeSource);
-
+            // Create PlanetModel directly from embedded config
+            PlanetModel planetModel = new PlanetModel(planetConfig);
+            
+            Terradyne.LOGGER.info("✅ Created PlanetModel: {} ({})", 
+                planetModel.getConfig().getPlanetName(), 
+                planetModel.getPlanetClassification());
+            
+            // Create identifier for this planet
+            String planetName = planetConfig.getPlanetName().toLowerCase().replace(" ", "_");
+            Identifier planetId = new Identifier("terradyne", planetName);
+            
+            // Initialize the biome source with the planet model
+            if (biomeSource instanceof PhysicsBasedBiomeSource physicsSource) {
+                physicsSource.setPlanetModel(planetModel);
+                
+                Terradyne.LOGGER.info("✅ Initialized physics-based biome source");
             } else {
-                Terradyne.LOGGER.error("❌ No planet definition found for: {}", planetName);
-                Terradyne.LOGGER.error("Available hardcoded planets: {}", HardcodedPlanets.getAllPlanetNames());
-
-                // Create generator without model - will use fallback terrain
-                UniversalChunkGenerator generator = new UniversalChunkGenerator(null, biomeSource);
-                generator.planetName = planetName;
-                return generator;
+                Terradyne.LOGGER.warn("⚠️  BiomeSource is not physics-based (type: {})",
+                        biomeSource.getClass().getSimpleName());
             }
-
-        } catch (Exception e) {
-            Terradyne.LOGGER.error("❌ Failed to create chunk generator for '{}': {}", planetName, e.getMessage());
-
-            // Fallback generator
-            UniversalChunkGenerator generator = new UniversalChunkGenerator(null, biomeSource);
-            generator.planetName = planetName;
+            
+            // Create the generator
+            UniversalChunkGenerator generator = new UniversalChunkGenerator(planetModel, biomeSource, planetId);
+            
+            Terradyne.LOGGER.info("✅ Successfully created UniversalChunkGenerator with embedded config");
+            
             return generator;
-        }
-    }
-
-    /**
-     * Load planet config directly from world directory
-     * Works on both client and server, eliminates timing issues
-     */
-    private static PlanetConfig loadPlanetConfigFromWorld(String planetName) {
-        try {
-            // Get the current world directory - this is tricky in codec context
-            // We need to find the world save directory
-            Path worldDir = getCurrentWorldDirectory();
-            if (worldDir == null) {
-                Terradyne.LOGGER.warn("Could not determine world directory for planet config loading");
-                return null;
-            }
-
-            Path planetsDir = worldDir.resolve("terradyne").resolve("planets");
-
-            if (!Files.exists(planetsDir)) {
-                Terradyne.LOGGER.warn("Planets config directory not found: {}", planetsDir);
-                return null;
-            }
-
-            // Normalize planet name for file lookup
-            String normalizedName = planetName.toLowerCase().replace(" ", "_");
-
-            // Try to find the config file
-            Path configFile = planetsDir.resolve(normalizedName + ".json");
-            if (!Files.exists(configFile)) {
-                // Try with original name
-                configFile = planetsDir.resolve(planetName + ".json");
-                if (!Files.exists(configFile)) {
-                    Terradyne.LOGGER.warn("Planet config file not found: {} or {}",
-                            normalizedName + ".json", planetName + ".json");
-                    return null;
-                }
-            }
-
-            // Load the specific config file
-            String jsonContent = Files.readString(configFile);
-
-            // Parse JSON manually (simplified version of PlanetConfigLoader logic)
-            PlanetConfig config = parseConfigFromJson(jsonContent, planetName);
-
-            if (config != null) {
-                Terradyne.LOGGER.debug("Successfully loaded planet config from: {}", configFile);
-            }
-
-            return config;
-
+            
         } catch (Exception e) {
-            Terradyne.LOGGER.error("Failed to load planet config for '{}': {}", planetName, e.getMessage());
-            return null;
+            Terradyne.LOGGER.error("❌ CRITICAL: Failed to create chunk generator from embedded config: {}", 
+                e.getMessage(), e);
+            throw new RuntimeException("Failed to create chunk generator from embedded config", e);
         }
-    }
-
-    /**
-     * Get current world directory - works in codec context
-     */
-    private static Path getCurrentWorldDirectory() {
-        try {
-            // Try to get world directory from system properties or working directory
-            // This is a common approach for Minecraft mods
-
-            // Method 1: Check if we're running in a server context
-            String serverDir = System.getProperty("user.dir");
-            if (serverDir != null) {
-                Path serverPath = Path.of(serverDir);
-
-                // Look for world directories
-                Path[] possiblePaths = {
-                        serverPath.resolve("world"),  // Default server world
-                        serverPath.resolve("saves").resolve("New World"), // Common dev world name
-                        serverPath  // Current directory might be the world
-                };
-
-                for (Path path : possiblePaths) {
-                    if (Files.exists(path.resolve("level.dat"))) {
-                        Terradyne.LOGGER.debug("Found world directory: {}", path);
-                        return path;
-                    }
-                }
-            }
-
-            // Method 2: Try to find any world with terradyne configs
-            Path userDir = Path.of(System.getProperty("user.dir"));
-            try (var stream = Files.walk(userDir, 3)) { // Search up to 3 levels deep
-                var worldDirs = stream
-                        .filter(Files::isDirectory)
-                        .filter(path -> Files.exists(path.resolve("level.dat")))
-                        .filter(path -> Files.exists(path.resolve("terradyne").resolve("planets")))
-                        .findFirst();
-
-                if (worldDirs.isPresent()) {
-                    Terradyne.LOGGER.debug("Found world with terradyne configs: {}", worldDirs.get());
-                    return worldDirs.get();
-                }
-            } catch (Exception e) {
-                // Continue to fallback
-            }
-
-            Terradyne.LOGGER.warn("Could not auto-detect world directory");
-            return null;
-
-        } catch (Exception e) {
-            Terradyne.LOGGER.error("Error detecting world directory: {}", e.getMessage());
-            return null;
-        }
-    }
-
-    /**
-     * Simple JSON parsing for planet config (simplified version)
-     */
-    private static PlanetConfig parseConfigFromJson(String jsonContent, String planetName) {
-        try {
-            // Use Gson to parse the JSON
-            com.google.gson.Gson gson = new com.google.gson.Gson();
-
-            // Parse to map first for easier handling
-            @SuppressWarnings("unchecked")
-            Map<String, Object> jsonMap = gson.fromJson(jsonContent, Map.class);
-
-            // Extract basic values with defaults
-            String name = getStringValue(jsonMap, "name", planetName);
-            long seed = name.hashCode(); // Generate seed from name
-
-            // Create config with Earth-like defaults
-            PlanetConfig config = new PlanetConfig(name, seed);
-
-            // Apply values with safe parsing
-            if (jsonMap.containsKey("circumference")) {
-                config.setCircumference(getIntValue(jsonMap, "circumference", 40000));
-            }
-            if (jsonMap.containsKey("distanceFromStar")) {
-                config.setDistanceFromStar(getLongValue(jsonMap, "distanceFromStar", 150));
-            }
-            if (jsonMap.containsKey("tectonicActivity")) {
-                config.setTectonicActivity(getDoubleValue(jsonMap, "tectonicActivity", 0.6));
-            }
-            if (jsonMap.containsKey("waterContent")) {
-                config.setWaterContent(getDoubleValue(jsonMap, "waterContent", 0.7));
-            }
-
-            // Parse enums safely
-            if (jsonMap.containsKey("crustComposition")) {
-                try {
-                    String crustStr = getStringValue(jsonMap, "crustComposition", "SILICATE");
-                    config.setCrustComposition(net.starlight.terradyne.planet.physics.CrustComposition.valueOf(crustStr.toUpperCase()));
-                } catch (Exception e) {
-                    Terradyne.LOGGER.warn("Invalid crust composition, using default: {}", e.getMessage());
-                }
-            }
-
-            if (jsonMap.containsKey("atmosphereComposition")) {
-                try {
-                    String atmoStr = getStringValue(jsonMap, "atmosphereComposition", "OXYGEN_RICH");
-                    config.setAtmosphereComposition(net.starlight.terradyne.planet.physics.AtmosphereComposition.valueOf(atmoStr.toUpperCase()));
-                } catch (Exception e) {
-                    Terradyne.LOGGER.warn("Invalid atmosphere composition, using default: {}", e.getMessage());
-                }
-            }
-
-            Terradyne.LOGGER.debug("Parsed planet config: {}", config);
-            return config;
-
-        } catch (Exception e) {
-            Terradyne.LOGGER.error("Failed to parse planet config JSON: {}", e.getMessage());
-            return null;
-        }
-    }
-
-    // Helper methods for safe JSON value extraction
-    private static String getStringValue(Map<String, Object> map, String key, String defaultValue) {
-        Object value = map.get(key);
-        return value instanceof String ? (String) value : defaultValue;
-    }
-
-    private static int getIntValue(Map<String, Object> map, String key, int defaultValue) {
-        Object value = map.get(key);
-        if (value instanceof Number) {
-            return ((Number) value).intValue();
-        }
-        return defaultValue;
-    }
-
-    private static long getLongValue(Map<String, Object> map, String key, long defaultValue) {
-        Object value = map.get(key);
-        if (value instanceof Number) {
-            return ((Number) value).longValue();
-        }
-        return defaultValue;
-    }
-
-    private static double getDoubleValue(Map<String, Object> map, String key, double defaultValue) {
-        Object value = map.get(key);
-        if (value instanceof Number) {
-            return ((Number) value).doubleValue();
-        }
-        return defaultValue;
     }
 
     @Override
@@ -564,7 +337,7 @@ public class UniversalChunkGenerator extends ChunkGenerator {
 
         } else {
             text.add("No planet model loaded");
-            text.add("Planet Name: " + planetName);
+            text.add("Planet ID: " + planetId);
             text.add("Status: FALLBACK GENERATION");
             text.add("Biome Source: " + getBiomeSource().getClass().getSimpleName());
         }
@@ -629,10 +402,10 @@ public class UniversalChunkGenerator extends ChunkGenerator {
 
     // === ACCESSORS ===
     /**
-     * Get the planet name
+     * Get the planet identifier
      */
-    public String getPlanetName() {
-        return planetName;
+    public Identifier getPlanetId() {
+        return planetId;
     }
 
     /**
@@ -651,13 +424,10 @@ public class UniversalChunkGenerator extends ChunkGenerator {
 
     // In UniversalChunkGenerator.java, update this method:
     private void ensurePlanetModelRegistered() {
-        if (planetModel != null && planetName != null && !planetName.isEmpty()) {
+        if (planetModel != null && planetId != null) {
             try {
-                String dimensionName = planetName.toLowerCase().replace(" ", "_").replace("-", "");
-                Identifier dimensionId = new Identifier("terradyne", dimensionName);
-
                 // Always register (overwrite if exists) to handle world reloads
-                PlanetModelRegistry.register(dimensionId, planetModel);
+                PlanetModelRegistry.register(planetId, planetModel);
 
             } catch (Exception e) {
                 Terradyne.LOGGER.error("Failed to register PlanetModel: {}", e.getMessage(), e);
